@@ -2,8 +2,9 @@ package service
 
 import (
 	"errors"
-	"github.com/aseptimu/url-shortener/internal/app/utils"
 	"net/url"
+
+	"github.com/aseptimu/url-shortener/internal/app/utils"
 )
 
 var URLsMap = map[string]string{}
@@ -13,7 +14,7 @@ func isValidURL(input string) bool {
 	return err == nil && parsedURI.Scheme != "" && parsedURI.Host != ""
 }
 
-func ShortenURL(input string) (string, error) {
+var ShortenURL = func(input string) (string, error) {
 	if !isValidURL(input) {
 		return "", errors.New("invalid URL format")
 	}
@@ -25,7 +26,7 @@ func ShortenURL(input string) (string, error) {
 	return shortURL, nil
 }
 
-func GetOriginalURL(input string) (string, bool) {
+var GetOriginalURL = func(input string) (string, bool) {
 	originalURL, exists := URLsMap[input]
 	return originalURL, exists
 }
