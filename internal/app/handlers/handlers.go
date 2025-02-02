@@ -14,11 +14,6 @@ func URLCreator(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	if r.Header.Get("Content-Type") != "text/plain" {
-		http.Error(w, "Only text/plain content type", http.StatusUnsupportedMediaType)
-		return
-	}
-
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "Failed to read body", http.StatusInternalServerError)
@@ -36,7 +31,7 @@ func URLCreator(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
 
-	w.Write([]byte(shortURL))
+	w.Write([]byte("http://localhost:8080/" + shortURL))
 }
 
 func GetURL(w http.ResponseWriter, r *http.Request) {
