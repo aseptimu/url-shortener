@@ -8,13 +8,13 @@ import (
 
 var URLsMap = map[string]string{}
 
-func isValidUrl(input string) bool {
-	parsedUri, err := url.ParseRequestURI(input)
-	return err == nil && parsedUri.Scheme != "" && parsedUri.Host != ""
+func isValidURL(input string) bool {
+	parsedURI, err := url.ParseRequestURI(input)
+	return err == nil && parsedURI.Scheme != "" && parsedURI.Host != ""
 }
 
 func ShortenURL(input string) (string, error) {
-	if !isValidUrl(input) {
+	if !isValidURL(input) {
 		return "", errors.New("invalid URL format")
 	}
 
