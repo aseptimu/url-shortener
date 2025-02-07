@@ -63,6 +63,7 @@ func TestURLCreator(t *testing.T) {
 			router.ServeHTTP(w, r)
 
 			res := w.Result()
+			defer res.Body.Close()
 			require.NotNil(t, res)
 			assert.Equal(t, tt.want.code, res.StatusCode)
 		})
@@ -130,6 +131,7 @@ func TestGetURL(t *testing.T) {
 			router.ServeHTTP(w, r)
 
 			res := w.Result()
+			defer res.Body.Close()
 			require.NotNil(t, res)
 			assert.Equal(t, tt.want.code, res.StatusCode)
 		})
