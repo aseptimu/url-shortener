@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/aseptimu/url-shortener/internal/app/config"
 	"github.com/aseptimu/url-shortener/internal/app/service"
 	"github.com/gin-gonic/gin"
 )
@@ -31,7 +32,7 @@ func URLCreator(c *gin.Context) {
 	}
 
 	c.Header("Content-Type", "text/plain")
-	c.String(http.StatusCreated, "http://localhost:8080/"+shortURL)
+	c.String(http.StatusCreated, config.Config.BaseAddress+shortURL)
 }
 
 func GetURL(c *gin.Context) {

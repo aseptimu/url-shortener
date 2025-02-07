@@ -1,13 +1,16 @@
 package main
 
 import (
+	"flag"
 	"log"
 
+	"github.com/aseptimu/url-shortener/internal/app/config"
 	"github.com/aseptimu/url-shortener/internal/app/server"
 )
 
 func main() {
-	addr := ":8080"
+	flag.Parse()
+	addr := config.Config.ServerAddress
 	log.Printf("Starting server on %s", addr)
 	err := server.Run(addr)
 	if err != nil {
