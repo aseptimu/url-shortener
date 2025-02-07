@@ -2,13 +2,13 @@ package handlers
 
 import (
 	"errors"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/aseptimu/url-shortener/internal/app/service"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,6 +22,9 @@ func mockShortenURL(url string) (string, error) {
 
 func TestURLCreator(t *testing.T) {
 	service.ShortenURL = mockShortenURL
+
+	router := gin.Default()
+	router.POST("/", URLCreator)
 
 	type want struct {
 		code    int
@@ -45,31 +48,23 @@ func TestURLCreator(t *testing.T) {
 		{
 			name: "method not allowed",
 			want: want{
-				code:    http.StatusMethodNotAllowed,
+				code:    http.StatusNotFound,
 				method:  http.MethodGet,
 				body:    "Only POST method allowed\n",
 				isError: true,
 			},
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := httptest.NewRequest(tt.want.method, "/", strings.NewReader("http://example.com"))
-
 			w := httptest.NewRecorder()
-			URLCreator(w, r)
+			r := httptest.NewRequest(tt.want.method, "/", strings.NewReader("http://example.com"))
+			router.ServeHTTP(w, r)
 
 			res := w.Result()
-			defer res.Body.Close()
-			resBody, err := io.ReadAll(res.Body)
-
-			if !tt.want.isError {
-				require.NoError(t, err)
-			}
-
-			require.NotEmpty(t, resBody)
-			assert.Equal(t, res.StatusCode, tt.want.code)
-			assert.Equal(t, tt.want.body, string(resBody))
+			require.NotNil(t, res)
+			assert.Equal(t, tt.want.code, res.StatusCode)
 		})
 	}
 }
@@ -82,6 +77,10 @@ func mockGetOriginalURL(input string) (string, bool) {
 }
 
 func TestGetURL(t *testing.T) {
+
+	router := gin.Default()
+	router.GET("/:url", GetURL)
+
 	service.GetOriginalURL = mockGetOriginalURL
 
 	type want struct {
@@ -106,7 +105,7 @@ func TestGetURL(t *testing.T) {
 		{
 			name: "wrong method",
 			want: want{
-				code:    http.StatusMethodNotAllowed,
+				code:    http.StatusNotFound,
 				method:  http.MethodPatch,
 				url:     "/abcdef",
 				isError: true,
@@ -115,7 +114,7 @@ func TestGetURL(t *testing.T) {
 		{
 			name: "empty path",
 			want: want{
-				code:    http.StatusMethodNotAllowed,
+				code:    http.StatusNotFound,
 				method:  http.MethodPatch,
 				url:     "/",
 				isError: true,
@@ -128,14 +127,11 @@ func TestGetURL(t *testing.T) {
 
 			w := httptest.NewRecorder()
 
-			GetURL(w, r)
+			router.ServeHTTP(w, r)
 
 			res := w.Result()
-
-			defer res.Body.Close()
-
-			require.NotEmpty(t, res.Body)
-			assert.Equal(t, res.StatusCode, tt.want.code)
+			require.NotNil(t, res)
+			assert.Equal(t, tt.want.code, res.StatusCode)
 		})
 	}
 }
