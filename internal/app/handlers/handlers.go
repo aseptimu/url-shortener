@@ -32,7 +32,7 @@ func URLCreator(c *gin.Context) {
 	}
 
 	c.Header("Content-Type", "text/plain")
-	c.String(http.StatusCreated, config.Config.BaseAddress+shortURL)
+	c.String(http.StatusCreated, config.Config.BaseAddress+"/"+shortURL)
 }
 
 func GetURL(c *gin.Context) {
