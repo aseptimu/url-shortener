@@ -7,7 +7,6 @@ import (
 
 	"github.com/aseptimu/url-shortener/internal/app/config"
 	"github.com/aseptimu/url-shortener/internal/app/service"
-	"github.com/aseptimu/url-shortener/internal/app/store"
 	"github.com/gin-gonic/gin"
 )
 
@@ -16,9 +15,7 @@ type Handler struct {
 	Service service.URLShortener
 }
 
-func NewHandler(cfg *config.ConfigType) *Handler {
-	store := store.NewStore()
-	service := service.NewURLService(store)
+func NewHandler(cfg *config.ConfigType, service service.URLShortener) *Handler {
 	return &Handler{cfg: cfg, Service: service}
 }
 

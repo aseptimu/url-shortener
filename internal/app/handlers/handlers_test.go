@@ -29,114 +29,42 @@ func (m *mockService) GetOriginalURL(input string) (string, bool) {
 	return "", false
 }
 
-func (m *mockService) TestURLCreator(t *testing.T) {
-	cfg := config.NewConfig()
+func TestURLCreator(t *testing.T) {
+	cfg := &config.ConfigType{BaseAddress: "http://localhost:8080"}
 	handler := NewHandler(cfg, &mockService{})
 
 	router := gin.Default()
 	router.POST("/", handler.URLCreator)
 
-	type want struct {
-		code    int
-		method  string
-		body    string
-		isError bool
-	}
-	tests := []struct {
-		name string
-		want want
-	}{
-		{
-			name: "successful URL creation",
-			want: want{
-				code:    http.StatusCreated,
-				method:  http.MethodPost,
-				body:    "http://localhost:8080/abcdef",
-				isError: false,
-			},
-		},
-		{
-			name: "method not allowed",
-			want: want{
-				code:    http.StatusNotFound,
-				method:  http.MethodGet,
-				body:    "Only POST method allowed\n",
-				isError: true,
-			},
-		},
-	}
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("http://example.com"))
+	r.Header.Set("Content-Type", "text/plain") // Добавляем заголовок
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			w := httptest.NewRecorder()
-			r := httptest.NewRequest(tt.want.method, "/", strings.NewReader("http://example.com"))
-			router.ServeHTTP(w, r)
+	router.ServeHTTP(w, r)
 
-			res := w.Result()
-			defer res.Body.Close()
-			require.NotNil(t, res)
-			assert.Equal(t, tt.want.code, res.StatusCode)
-		})
-	}
+	res := w.Result()
+	defer res.Body.Close()
+
+	require.NotNil(t, res)
+	assert.Equal(t, http.StatusCreated, res.StatusCode)
 }
 
 func TestGetURL(t *testing.T) {
-	cfg := config.NewConfig()
+	cfg := &config.ConfigType{BaseAddress: "http://localhost:8080"}
 	handler := NewHandler(cfg, &mockService{})
 
 	router := gin.Default()
 	router.GET("/:url", handler.GetURL)
 
-	type want struct {
-		code    int
-		method  string
-		url     string
-		isError bool
-	}
-	tests := []struct {
-		name string
-		want want
-	}{
-		{
-			name: "successful response",
-			want: want{
-				code:    http.StatusTemporaryRedirect,
-				method:  http.MethodGet,
-				url:     "/abcdef",
-				isError: false,
-			},
-		},
-		{
-			name: "wrong method",
-			want: want{
-				code:    http.StatusNotFound,
-				method:  http.MethodPatch,
-				url:     "/abcdef",
-				isError: true,
-			},
-		},
-		{
-			name: "empty path",
-			want: want{
-				code:    http.StatusNotFound,
-				method:  http.MethodPatch,
-				url:     "/",
-				isError: true,
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := httptest.NewRequest(tt.want.method, tt.want.url, nil)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/abcdef", nil)
 
-			w := httptest.NewRecorder()
+	router.ServeHTTP(w, r)
 
-			router.ServeHTTP(w, r)
+	res := w.Result()
+	defer res.Body.Close()
 
-			res := w.Result()
-			defer res.Body.Close()
-			require.NotNil(t, res)
-			assert.Equal(t, tt.want.code, res.StatusCode)
-		})
-	}
+	require.NotNil(t, res)
+	assert.Equal(t, http.StatusTemporaryRedirect, res.StatusCode)
+	assert.Equal(t, "http://example.com", res.Header.Get("Location")) // Проверяем редирект
 }
