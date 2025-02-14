@@ -7,24 +7,34 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aseptimu/url-shortener/internal/app/service"
+	"github.com/aseptimu/url-shortener/internal/app/config"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func mockShortenURL(url string) (string, error) {
+type mockService struct{}
+
+func (m *mockService) ShortenURL(url string) (string, error) {
 	if url == "http://example.com" {
 		return "abcdef", nil
 	}
 	return "", errors.New("invalid URL format")
 }
 
-func TestURLCreator(t *testing.T) {
-	service.ShortenURL = mockShortenURL
+func (m *mockService) GetOriginalURL(input string) (string, bool) {
+	if input == "abcdef" {
+		return "http://example.com", true
+	}
+	return "", false
+}
+
+func (m *mockService) TestURLCreator(t *testing.T) {
+	cfg := config.NewConfig()
+	handler := NewHandler(cfg, &mockService{})
 
 	router := gin.Default()
-	router.POST("/", URLCreator)
+	router.POST("/", handler.URLCreator)
 
 	type want struct {
 		code    int
@@ -70,19 +80,12 @@ func TestURLCreator(t *testing.T) {
 	}
 }
 
-func mockGetOriginalURL(input string) (string, bool) {
-	if input != "/abcdef" {
-		return "http://example.com", true
-	}
-	return "", false
-}
-
 func TestGetURL(t *testing.T) {
+	cfg := config.NewConfig()
+	handler := NewHandler(cfg, &mockService{})
 
 	router := gin.Default()
-	router.GET("/:url", GetURL)
-
-	service.GetOriginalURL = mockGetOriginalURL
+	router.GET("/:url", handler.GetURL)
 
 	type want struct {
 		code    int
