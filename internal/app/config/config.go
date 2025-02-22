@@ -12,9 +12,8 @@ type ConfigType struct {
 	BaseAddress   string `env:"BASE_URL"`
 }
 
-var config ConfigType
-
 func NewConfig() *ConfigType {
+	config := ConfigType{}
 	flag.StringVar(&config.ServerAddress, "a", "localhost:8080", "HTTP server address")
 	flag.StringVar(&config.BaseAddress, "b", "http://localhost:8080", "shorten URL base address")
 	flag.Parse()

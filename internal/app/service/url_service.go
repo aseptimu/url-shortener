@@ -4,9 +4,13 @@ import (
 	"errors"
 	"net/url"
 
-	"github.com/aseptimu/url-shortener/internal/app/store"
 	"github.com/aseptimu/url-shortener/internal/app/utils"
 )
+
+type Store interface {
+	Get(shortURL string) (string, bool)
+	Set(shortURL, originalURL string)
+}
 
 type URLShortener interface {
 	ShortenURL(input string) (string, error)
@@ -14,10 +18,10 @@ type URLShortener interface {
 }
 
 type URLService struct {
-	store store.Store
+	store Store
 }
 
-func NewURLService(store store.Store) *URLService {
+func NewURLService(store Store) *URLService {
 	return &URLService{store: store}
 }
 
