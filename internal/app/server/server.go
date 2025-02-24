@@ -116,7 +116,7 @@ func Run(addr string, cfg *config.ConfigType) error {
 	router.Use(middlewareLogger(sugar))
 	router.Use(gzipMiddleware())
 
-	store := store.NewStore()
+	store := store.NewFileStore(cfg.FileStoragePath)
 	service := service.NewURLService(store)
 	handler := handlers.NewHandler(cfg, service)
 
