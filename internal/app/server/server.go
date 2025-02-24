@@ -81,6 +81,7 @@ func Run(addr string, cfg *config.ConfigType) error {
 
 	router.GET("/:url", handler.GetURL)
 	router.POST("/", handler.URLCreator)
+	router.POST("/api/shorten", handler.URLCreatorJSON)
 
 	return router.Run(addr)
 }

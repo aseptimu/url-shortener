@@ -44,6 +44,33 @@ func (h *Handler) URLCreator(c *gin.Context) {
 	c.String(http.StatusCreated, h.cfg.BaseAddress+"/"+shortURL)
 }
 
+func (h *Handler) URLCreatorJSON(c *gin.Context) {
+	defer c.Request.Body.Close()
+
+	var req struct {
+		URL string `json:"url"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format"})
+		return
+	}
+
+	req.URL = strings.TrimSpace(req.URL)
+	if req.URL == "" {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "URL is required"})
+		return
+	}
+
+	shortURL, err := h.Service.ShortenURL(req.URL)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"result": h.cfg.BaseAddress + "/" + shortURL})
+}
+
 func (h *Handler) GetURL(c *gin.Context) {
 	key := c.Param("url")
 	originalURL, exists := h.Service.GetOriginalURL(key)
