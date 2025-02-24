@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -47,11 +48,16 @@ func (h *Handler) URLCreator(c *gin.Context) {
 func (h *Handler) URLCreatorJSON(c *gin.Context) {
 	defer c.Request.Body.Close()
 
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Failed to read request body"})
+		return
+	}
+
 	var req struct {
 		URL string `json:"url"`
 	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := json.Unmarshal(body, &req); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format"})
 		return
 	}
@@ -68,7 +74,19 @@ func (h *Handler) URLCreatorJSON(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"result": h.cfg.BaseAddress + "/" + shortURL})
+	resp := struct {
+		Result string `json:"result"`
+	}{
+		Result: h.cfg.BaseAddress + "/" + shortURL,
+	}
+
+	c.Header("Content-Type", "application/json")
+	c.Status(http.StatusCreated)
+
+	encoder := json.NewEncoder(c.Writer)
+	if err := encoder.Encode(resp); err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to encode response"})
+	}
 }
 
 func (h *Handler) GetURL(c *gin.Context) {
