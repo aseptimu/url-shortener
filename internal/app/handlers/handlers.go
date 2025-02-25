@@ -34,7 +34,7 @@ func (h *Handler) URLCreator(c *gin.Context) {
 		return
 	}
 
-	shortURL, err := h.Service.ShortenURL(text.Path)
+	shortURL, err := h.Service.ShortenURL(text.String())
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
