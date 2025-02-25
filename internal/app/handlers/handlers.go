@@ -2,13 +2,12 @@ package handlers
 
 import (
 	"encoding/json"
-	"io"
-	"net/http"
-	"strings"
-
 	"github.com/aseptimu/url-shortener/internal/app/config"
 	"github.com/aseptimu/url-shortener/internal/app/service"
 	"github.com/gin-gonic/gin"
+	"io"
+	"net/http"
+	"net/url"
 )
 
 type Handler struct {
@@ -29,13 +28,13 @@ func (h *Handler) URLCreator(c *gin.Context) {
 		return
 	}
 
-	text := strings.TrimSpace(string(body))
-	if text == "" {
+	text, err := url.Parse(string(body))
+	if err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Empty body"})
 		return
 	}
 
-	shortURL, err := h.Service.ShortenURL(text)
+	shortURL, err := h.Service.ShortenURL(text.Path)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -59,12 +58,6 @@ func (h *Handler) URLCreatorJSON(c *gin.Context) {
 	}
 	if err := json.Unmarshal(body, &req); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format"})
-		return
-	}
-
-	req.URL = strings.TrimSpace(req.URL)
-	if req.URL == "" {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "URL is required"})
 		return
 	}
 
