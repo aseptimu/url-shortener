@@ -10,10 +10,9 @@ import (
 	"go.uber.org/zap"
 )
 
-func Run(addr string, cfg *config.ConfigType) error {
+func Run(addr string, cfg *config.ConfigType, logger *zap.Logger) error {
 	gin.SetMode(gin.ReleaseMode)
 
-	logger, _ := zap.NewProduction()
 	defer logger.Sync()
 
 	router := gin.New()
