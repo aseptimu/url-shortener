@@ -1,6 +1,7 @@
 package server
 
 import (
+	"database/sql"
 	"github.com/aseptimu/url-shortener/internal/app/config"
 	"github.com/aseptimu/url-shortener/internal/app/handlers"
 	"github.com/aseptimu/url-shortener/internal/app/middleware"
@@ -10,7 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func Run(addr string, cfg *config.ConfigType, logger *zap.Logger) error {
+func Run(addr string, cfg *config.ConfigType, db *sql.DB, logger *zap.Logger) error {
 	gin.SetMode(gin.ReleaseMode)
 
 	defer logger.Sync()
@@ -23,9 +24,10 @@ func Run(addr string, cfg *config.ConfigType, logger *zap.Logger) error {
 
 	store := store.NewFileStore(cfg.FileStoragePath)
 	service := service.NewURLService(store)
-	handler := handlers.NewHandler(cfg, service)
+	handler := handlers.NewHandler(cfg, service, db)
 
 	router.GET("/:url", handler.GetURL)
+	router.GET("/ping", handler.Ping)
 	router.POST("/", handler.URLCreator)
 	router.POST("/api/shorten", handler.URLCreatorJSON)
 

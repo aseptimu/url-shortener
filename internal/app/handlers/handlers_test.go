@@ -32,7 +32,7 @@ func (m *mockService) GetOriginalURL(input string) (string, bool) {
 
 func TestURLCreator(t *testing.T) {
 	cfg := &config.ConfigType{BaseAddress: "http://localhost:8080"}
-	handler := NewHandler(cfg, &mockService{})
+	handler := NewHandler(cfg, &mockService{}, nil)
 
 	router := gin.New()
 	router.POST("/", handler.URLCreator)
@@ -52,7 +52,7 @@ func TestURLCreator(t *testing.T) {
 
 func TestGetURL(t *testing.T) {
 	cfg := &config.ConfigType{BaseAddress: "http://localhost:8080"}
-	handler := NewHandler(cfg, &mockService{})
+	handler := NewHandler(cfg, &mockService{}, nil)
 
 	router := gin.New()
 	router.GET("/:url", handler.GetURL)
@@ -72,7 +72,7 @@ func TestGetURL(t *testing.T) {
 
 func TestURLCreatorJSON(t *testing.T) {
 	cfg := &config.ConfigType{BaseAddress: "http://localhost:8080"}
-	handler := NewHandler(cfg, &mockService{})
+	handler := NewHandler(cfg, &mockService{}, nil)
 
 	router := gin.New()
 	router.POST("/api/shorten", handler.URLCreatorJSON)
