@@ -46,17 +46,17 @@ func (db *Database) Ping() error {
 	return nil
 }
 
-func (db *Database) Get(shortURL string) (originalUrl string, ok bool) {
+func (db *Database) Get(shortURL string) (originalURL string, ok bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	row := db.db.QueryRowContext(ctx, "SELECT original_url FROM urls WHERE short_url = $1", shortURL)
-	err := row.Scan(&originalUrl)
+	err := row.Scan(&originalURL)
 	if err != nil {
 		db.logger.Errorw("failed to query url", "shortURL", shortURL, "err", err)
 	}
 
-	return originalUrl, row != nil
+	return originalURL, row != nil
 }
 func (db *Database) Set(shortURL, originalURL string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
