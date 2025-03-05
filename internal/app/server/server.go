@@ -1,7 +1,6 @@
 package server
 
 import (
-	"database/sql"
 	"github.com/aseptimu/url-shortener/internal/app/config"
 	"github.com/aseptimu/url-shortener/internal/app/handlers"
 	"github.com/aseptimu/url-shortener/internal/app/middleware"
@@ -11,20 +10,23 @@ import (
 	"go.uber.org/zap"
 )
 
-func Run(addr string, cfg *config.ConfigType, db *sql.DB, logger *zap.Logger) error {
+func Run(addr string, cfg *config.ConfigType, db *store.Database, logger *zap.SugaredLogger) error {
 	gin.SetMode(gin.ReleaseMode)
-
-	defer logger.Sync()
 
 	router := gin.New()
 
-	sugar := logger.Sugar()
-	router.Use(middleware.MiddlewareLogger(sugar))
+	router.Use(middleware.MiddlewareLogger(logger))
 	router.Use(middleware.GzipMiddleware())
 
-	store := store.NewFileStore(cfg.FileStoragePath)
-	service := service.NewURLService(store)
-	handler := handlers.NewHandler(cfg, service, db)
+	var sourceStore service.Store = db
+	if cfg.DSN != "" {
+		db.CreateTables(logger)
+	} else {
+		sourceStore = store.NewFileStore(cfg.FileStoragePath)
+	}
+
+	urlService := service.NewURLService(sourceStore)
+	handler := handlers.NewHandler(cfg, urlService, db)
 
 	router.GET("/:url", handler.GetURL)
 	router.GET("/ping", handler.Ping)

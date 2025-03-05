@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/aseptimu/url-shortener/internal/app/database"
+	"github.com/aseptimu/url-shortener/internal/app/store"
 	"go.uber.org/zap"
 	"log"
 
@@ -11,14 +11,19 @@ import (
 
 func main() {
 	config := config.NewConfig()
-	logger, _ := zap.NewProduction()
 
-	db := database.NewDB(config.DSN, logger)
-	defer db.Close()
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
+	sugar := logger.Sugar()
+
+	var db *store.Database
+	if config.DSN != "" {
+		db = store.NewDB(config.DSN, sugar)
+	}
 
 	addr := config.ServerAddress
 	log.Printf("Starting server on %s", addr)
-	err := server.Run(addr, config, db, logger)
+	err := server.Run(addr, config, db, sugar)
 	if err != nil {
 		log.Fatalf("Server failed to start on %s: %v", addr, err)
 	}

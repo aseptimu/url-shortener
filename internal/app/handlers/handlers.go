@@ -1,36 +1,38 @@
 package handlers
 
 import (
-	"context"
-	"database/sql"
 	"encoding/json"
 	"github.com/aseptimu/url-shortener/internal/app/config"
 	"github.com/aseptimu/url-shortener/internal/app/service"
+	"github.com/aseptimu/url-shortener/internal/app/store"
 	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
 	"net/url"
-	"time"
 )
 
 type Handler struct {
 	cfg     *config.ConfigType
 	Service service.URLShortener
-	db      *sql.DB
+	db      *store.Database
 }
 
-func NewHandler(cfg *config.ConfigType, service service.URLShortener, db *sql.DB) *Handler {
+func NewHandler(cfg *config.ConfigType, service service.URLShortener, db *store.Database) *Handler {
 	return &Handler{cfg: cfg, Service: service, db: db}
 }
 
 func (h *Handler) Ping(c *gin.Context) {
 	defer c.Request.Body.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	err := h.db.PingContext(ctx)
+	if h.db == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Server doesn't use database"})
+		return
+	}
+
+	err := h.db.Ping()
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 }
 
