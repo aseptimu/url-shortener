@@ -32,6 +32,7 @@ func Run(addr string, cfg *config.ConfigType, db *store.Database, logger *zap.Su
 	router.GET("/ping", handler.Ping)
 	router.POST("/", handler.URLCreator)
 	router.POST("/api/shorten", handler.URLCreatorJSON)
+	router.POST("/api/shorten/batch", handler.URLCreatorBatch)
 
 	return router.Run(addr)
 }

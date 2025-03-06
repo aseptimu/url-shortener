@@ -99,6 +99,48 @@ func (h *Handler) URLCreatorJSON(c *gin.Context) {
 	}
 }
 
+type URLRequest struct {
+	CorrelationID string `json:"correlation_id"`
+	OriginalURL   string `json:"original_url"`
+}
+
+type URLResponse struct {
+	CorrelationID string `json:"correlation_id"`
+	ShortURL      string `json:"short_url"`
+}
+
+func (h *Handler) URLCreatorBatch(c *gin.Context) {
+	defer c.Request.Body.Close()
+
+	var requestURLs []struct {
+		CorrelationID string `json:"correlation_id"`
+		OriginalURL   string `json:"original_url"`
+	}
+
+	if err := json.NewDecoder(c.Request.Body).Decode(&requestURLs); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format"})
+		return
+	}
+
+	responseURLs := make([]URLResponse, len(requestURLs))
+
+	for i, requestURL := range requestURLs {
+		shortURL, err := h.Service.ShortenURL(requestURL.OriginalURL)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to shorten URL"})
+			return
+		}
+
+		responseURLs[i] = URLResponse{
+			CorrelationID: requestURL.CorrelationID,
+			ShortURL:      h.cfg.BaseAddress + "/" + shortURL,
+		}
+	}
+
+	c.Header("Content-Type", "application/json")
+	c.JSON(http.StatusCreated, responseURLs)
+}
+
 func (h *Handler) GetURL(c *gin.Context) {
 	key := c.Param("url")
 	originalURL, exists := h.Service.GetOriginalURL(key)
