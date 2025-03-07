@@ -16,11 +16,11 @@ import (
 
 type mockService struct{}
 
-func (m *mockService) ShortenURL(url string) (string, error) {
+func (m *mockService) ShortenURL(url string) (string, error, bool) {
 	if url == "http://example.com" {
-		return "abcdef", nil
+		return "abcdef", nil, false
 	}
-	return "", errors.New("invalid URL format")
+	return "", errors.New("invalid URL format"), false
 }
 
 func (m *mockService) GetOriginalURL(input string) (string, bool) {

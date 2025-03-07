@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.uber.org/zap"
 	"time"
@@ -58,12 +59,29 @@ func (db *Database) Get(shortURL string) (originalURL string, ok bool) {
 
 	return originalURL, row != nil
 }
-func (db *Database) Set(shortURL, originalURL string) {
+func (db *Database) Set(shortURL, originalURL string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	_, err := db.db.ExecContext(ctx, "INSERT INTO urls (short_url, original_url) VALUES ($1, $2)", shortURL, originalURL)
-	if err != nil {
+	err := db.db.QueryRowContext(ctx,
+		`INSERT INTO urls (short_url, original_url) 
+         VALUES ($1, $2) 
+         ON CONFLICT (original_url) DO NOTHING 
+         RETURNING short_url`,
+		shortURL, originalURL).Scan(&shortURL)
+
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		db.logger.Errorw("failed to set url", "short_url", shortURL, "original_url", originalURL, "err", err)
+		return "", err
 	}
+
+	if errors.Is(err, sql.ErrNoRows) {
+		db.logger.Debugw("URL already exists", "original_url", originalURL)
+		err = db.db.QueryRowContext(ctx,
+			`SELECT short_url FROM urls WHERE original_url = $1`, originalURL).Scan(&shortURL)
+		if err != nil {
+			return "", err
+		}
+	}
+	return shortURL, err
 }

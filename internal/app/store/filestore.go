@@ -73,9 +73,18 @@ func (fs *FileStore) Get(shortURL string) (string, bool) {
 	return value, exists
 }
 
-func (fs *FileStore) Set(shortURL, originalURL string) {
+func (fs *FileStore) Set(shortURL, originalURL string) (string, error) {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
+
+	for existingShort, storedOriginal := range fs.data {
+		if storedOriginal == originalURL {
+			return existingShort, nil
+		}
+	}
+
 	fs.data[shortURL] = originalURL
 	fs.saveToFile(shortURL, originalURL)
+
+	return shortURL, nil
 }

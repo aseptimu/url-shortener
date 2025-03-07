@@ -51,14 +51,18 @@ func (h *Handler) URLCreator(c *gin.Context) {
 		return
 	}
 
-	shortURL, err := h.Service.ShortenURL(text.String())
+	shortURL, err, isConflict := h.Service.ShortenURL(text.String())
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	c.Header("Content-Type", "text/plain")
-	c.String(http.StatusCreated, h.cfg.BaseAddress+"/"+shortURL)
+	if isConflict {
+		c.String(http.StatusConflict, h.cfg.BaseAddress+"/"+shortURL)
+	} else {
+		c.String(http.StatusCreated, h.cfg.BaseAddress+"/"+shortURL)
+	}
 }
 
 func (h *Handler) URLCreatorJSON(c *gin.Context) {
@@ -78,7 +82,7 @@ func (h *Handler) URLCreatorJSON(c *gin.Context) {
 		return
 	}
 
-	shortURL, err := h.Service.ShortenURL(req.URL)
+	shortURL, err, isConflict := h.Service.ShortenURL(req.URL)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -90,12 +94,10 @@ func (h *Handler) URLCreatorJSON(c *gin.Context) {
 		Result: h.cfg.BaseAddress + "/" + shortURL,
 	}
 
-	c.Header("Content-Type", "application/json")
-	c.Status(http.StatusCreated)
-
-	encoder := json.NewEncoder(c.Writer)
-	if err := encoder.Encode(resp); err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to encode response"})
+	if isConflict {
+		c.JSON(http.StatusConflict, resp)
+	} else {
+		c.JSON(http.StatusCreated, resp)
 	}
 }
 
@@ -124,11 +126,16 @@ func (h *Handler) URLCreatorBatch(c *gin.Context) {
 
 	responseURLs := make([]URLResponse, len(requestURLs))
 
+	conflict := false
+
 	for i, requestURL := range requestURLs {
-		shortURL, err := h.Service.ShortenURL(requestURL.OriginalURL)
+		shortURL, err, isConflict := h.Service.ShortenURL(requestURL.OriginalURL)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to shorten URL"})
 			return
+		}
+		if isConflict {
+			conflict = true
 		}
 
 		responseURLs[i] = URLResponse{
@@ -138,7 +145,11 @@ func (h *Handler) URLCreatorBatch(c *gin.Context) {
 	}
 
 	c.Header("Content-Type", "application/json")
-	c.JSON(http.StatusCreated, responseURLs)
+	if conflict {
+		c.JSON(http.StatusConflict, responseURLs)
+	} else {
+		c.JSON(http.StatusCreated, responseURLs)
+	}
 }
 
 func (h *Handler) GetURL(c *gin.Context) {
