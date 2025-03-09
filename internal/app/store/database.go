@@ -14,7 +14,8 @@ type Database struct {
 	logger *zap.SugaredLogger
 }
 
-const createTableQuery = `CREATE TABLE IF NOT EXISTS urls (
+const createTableQuery = `
+	CREATE TABLE IF NOT EXISTS urls (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     short_url TEXT NOT NULL,
     original_url TEXT NOT NULL
