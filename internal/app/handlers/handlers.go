@@ -6,6 +6,7 @@ import (
 	"github.com/aseptimu/url-shortener/internal/app/service"
 	"github.com/aseptimu/url-shortener/internal/app/store"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"net/url"
@@ -15,13 +16,15 @@ type Handler struct {
 	cfg     *config.ConfigType
 	Service service.URLShortener
 	db      *store.Database
+	logger  *zap.SugaredLogger
 }
 
-func NewHandler(cfg *config.ConfigType, service service.URLShortener, db *store.Database) *Handler {
-	return &Handler{cfg: cfg, Service: service, db: db}
+func NewHandler(cfg *config.ConfigType, service service.URLShortener, db *store.Database, logger *zap.SugaredLogger) *Handler {
+	return &Handler{cfg: cfg, Service: service, db: db, logger: logger}
 }
 
 func (h *Handler) Ping(c *gin.Context) {
+	h.logRequest(c)
 	defer c.Request.Body.Close()
 
 	if h.db == nil {
@@ -37,6 +40,7 @@ func (h *Handler) Ping(c *gin.Context) {
 }
 
 func (h *Handler) URLCreator(c *gin.Context) {
+	h.logRequest(c)
 	defer c.Request.Body.Close()
 
 	body, err := io.ReadAll(c.Request.Body)
@@ -66,6 +70,7 @@ func (h *Handler) URLCreator(c *gin.Context) {
 }
 
 func (h *Handler) URLCreatorJSON(c *gin.Context) {
+	h.logRequest(c)
 	defer c.Request.Body.Close()
 
 	body, err := io.ReadAll(c.Request.Body)
@@ -112,6 +117,7 @@ type URLResponse struct {
 }
 
 func (h *Handler) URLCreatorBatch(c *gin.Context) {
+	h.logRequest(c)
 	defer c.Request.Body.Close()
 
 	var requestURLs []struct {
@@ -153,6 +159,7 @@ func (h *Handler) URLCreatorBatch(c *gin.Context) {
 }
 
 func (h *Handler) GetURL(c *gin.Context) {
+	h.logRequest(c)
 	key := c.Param("url")
 	originalURL, exists := h.Service.GetOriginalURL(key)
 	if !exists {
@@ -163,4 +170,12 @@ func (h *Handler) GetURL(c *gin.Context) {
 	c.Header("Location", originalURL)
 	c.Header("Content-Type", "text/plain")
 	c.String(http.StatusTemporaryRedirect, originalURL)
+}
+
+func (h *Handler) logRequest(c *gin.Context) {
+	h.logger.Debugw("Endpoint called",
+		"method", c.Request.Method,
+		"path", c.FullPath(),
+		"remote_addr", c.ClientIP(),
+	)
 }

@@ -32,7 +32,7 @@ func Run(addr string, cfg *config.ConfigType, db *store.Database, logger *zap.Su
 	}
 
 	urlService := service.NewURLService(sourceStore)
-	handler := handlers.NewHandler(cfg, urlService, db)
+	handler := handlers.NewHandler(cfg, urlService, db, logger)
 
 	router.GET("/:url", handler.GetURL)
 	router.GET("/ping", handler.Ping)
