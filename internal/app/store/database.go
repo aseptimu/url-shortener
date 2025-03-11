@@ -30,7 +30,7 @@ func (db *Database) CreateTables(logger *zap.SugaredLogger) {
 }
 
 func NewDB(ps string, logger *zap.SugaredLogger) *Database {
-	db, err := sql.Open("pgx", ps)
+	db, err := sql.Open("pgx", ps+"&client_encoding=UTF8")
 	if err != nil {
 		logger.Panic("failed to connect to database", zap.Error(err))
 	}
