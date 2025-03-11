@@ -13,15 +13,21 @@ import (
 func Run(addr string, cfg *config.ConfigType, db *store.Database, logger *zap.SugaredLogger) error {
 	gin.SetMode(gin.ReleaseMode)
 
+	logger.Infow("Initializing server", "address", addr)
+
 	router := gin.New()
 
+	logger.Debug("Setting up middleware")
 	router.Use(middleware.MiddlewareLogger(logger))
 	router.Use(middleware.GzipMiddleware())
 
 	var sourceStore service.Store = db
+
 	if cfg.DSN != "" {
+		logger.Debugw("Database mode enabled, initializing tables")
 		db.CreateTables(logger)
 	} else {
+		logger.Debugw("File storage mode enabled", "storagePath", cfg.FileStoragePath)
 		sourceStore = store.NewFileStore(cfg.FileStoragePath)
 	}
 
@@ -34,5 +40,10 @@ func Run(addr string, cfg *config.ConfigType, db *store.Database, logger *zap.Su
 	router.POST("/api/shorten", handler.URLCreatorJSON)
 	router.POST("/api/shorten/batch", handler.URLCreatorBatch)
 
-	return router.Run(addr)
+	logger.Debugw("Starting server", "address", addr)
+	err := router.Run(addr)
+	if err != nil {
+		logger.Errorw("Server failed to start", "error", err)
+	}
+	return err
 }
