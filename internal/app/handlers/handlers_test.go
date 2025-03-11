@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 type mockService struct{}
@@ -30,9 +31,17 @@ func (m *mockService) GetOriginalURL(input string) (string, bool) {
 	return "", false
 }
 
-func TestURLCreator(t *testing.T) {
+func newTestHandler() *Handler {
 	cfg := &config.ConfigType{BaseAddress: "http://localhost:8080"}
-	handler := NewHandler(cfg, &mockService{}, nil)
+
+	logger, _ := zap.NewDevelopment()
+	sugar := logger.Sugar()
+
+	return NewHandler(cfg, &mockService{}, nil, sugar)
+}
+
+func TestURLCreator(t *testing.T) {
+	handler := newTestHandler()
 
 	router := gin.New()
 	router.POST("/", handler.URLCreator)
@@ -51,8 +60,7 @@ func TestURLCreator(t *testing.T) {
 }
 
 func TestGetURL(t *testing.T) {
-	cfg := &config.ConfigType{BaseAddress: "http://localhost:8080"}
-	handler := NewHandler(cfg, &mockService{}, nil)
+	handler := newTestHandler()
 
 	router := gin.New()
 	router.GET("/:url", handler.GetURL)
@@ -71,8 +79,7 @@ func TestGetURL(t *testing.T) {
 }
 
 func TestURLCreatorJSON(t *testing.T) {
-	cfg := &config.ConfigType{BaseAddress: "http://localhost:8080"}
-	handler := NewHandler(cfg, &mockService{}, nil)
+	handler := newTestHandler()
 
 	router := gin.New()
 	router.POST("/api/shorten", handler.URLCreatorJSON)
