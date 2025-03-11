@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.uber.org/zap"
 	"time"
@@ -34,15 +33,6 @@ func NewDB(ps string, logger *zap.SugaredLogger) *Database {
 	db, err := sql.Open("pgx", ps)
 	if err != nil {
 		logger.Panic("failed to connect to database", zap.Error(err))
-	} else {
-		if cfg, err := pgx.ParseConfig(ps); err != nil && cfg != nil {
-			logger.Debugw("Successfully connected to database",
-				"host", cfg.Host,
-				"port", cfg.Port,
-				"database", cfg.Database,
-				"user", cfg.User,
-			)
-		}
 	}
 
 	return &Database{db, logger}
@@ -74,7 +64,8 @@ func (db *Database) Set(shortURL, originalURL string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	db.logger.Debugw("setting url", "shortURL", shortURL, "originalURL", originalURL)
+	db.logger.Debugw("Attempting to insert URL", "shortURL", shortURL, "originalURL", originalURL)
+
 	err := db.db.QueryRowContext(ctx,
 		`INSERT INTO urls (short_url, original_url) 
          VALUES ($1, $2) 
@@ -83,17 +74,24 @@ func (db *Database) Set(shortURL, originalURL string) (string, error) {
 		shortURL, originalURL).Scan(&shortURL)
 
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		db.logger.Errorw("failed to set url", "short_url", shortURL, "original_url", originalURL, "err", err)
+		db.logger.Errorw("Failed to insert URL", "shortURL", shortURL, "originalURL", originalURL, "err", err)
 		return "", err
 	}
 
 	if errors.Is(err, sql.ErrNoRows) {
-		db.logger.Debugw("URL already exists", "original_url", originalURL)
+		db.logger.Debugw("URL already exists, fetching short URL from DB", "originalURL", originalURL)
+
 		err = db.db.QueryRowContext(ctx,
 			`SELECT short_url FROM urls WHERE original_url = $1`, originalURL).Scan(&shortURL)
+
 		if err != nil {
+			db.logger.Errorw("Failed to retrieve existing short URL", "originalURL", originalURL, "err", err)
 			return "", err
 		}
+
+		db.logger.Debugw("Successfully retrieved short URL", "shortURL", shortURL, "originalURL", originalURL)
 	}
-	return shortURL, err
+
+	db.logger.Debugw("Successfully stored short URL", "shortURL", shortURL, "originalURL", originalURL)
+	return shortURL, nil
 }
