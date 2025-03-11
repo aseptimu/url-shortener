@@ -30,7 +30,7 @@ func (db *Database) CreateTables(logger *zap.SugaredLogger) {
 }
 
 func NewDB(ps string, logger *zap.SugaredLogger) *Database {
-	db, err := sql.Open("pgx", ps+"&client_encoding=UTF8")
+	db, err := sql.Open("pgx", ps)
 	if err != nil {
 		logger.Panic("failed to connect to database", zap.Error(err))
 	}
@@ -64,6 +64,7 @@ func (db *Database) Set(shortURL, originalURL string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	db.logger.Debugw("setting url", "shortURL", shortURL, "originalURL", originalURL)
 	err := db.db.QueryRowContext(ctx,
 		`INSERT INTO urls (short_url, original_url) 
          VALUES ($1, $2) 

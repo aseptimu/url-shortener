@@ -12,11 +12,12 @@ import (
 func main() {
 	config := config.NewConfig()
 
-	logger, _ := zap.NewProduction()
+	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 	sugar := logger.Sugar()
 
 	var db *store.Database
+	sugar.Debugw("Connecting to database", "DB config", config.DSN)
 	if config.DSN != "" {
 		db = store.NewDB(config.DSN, sugar)
 	}
