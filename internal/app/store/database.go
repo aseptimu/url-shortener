@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.uber.org/zap"
 	"time"
@@ -33,6 +34,15 @@ func NewDB(ps string, logger *zap.SugaredLogger) *Database {
 	db, err := sql.Open("pgx", ps)
 	if err != nil {
 		logger.Panic("failed to connect to database", zap.Error(err))
+	} else {
+		if cfg, err := pgx.ParseConfig(ps); err != nil && cfg != nil {
+			logger.Debugw("Successfully connected to database",
+				"host", cfg.Host,
+				"port", cfg.Port,
+				"database", cfg.Database,
+				"user", cfg.User,
+			)
+		}
 	}
 
 	return &Database{db, logger}
