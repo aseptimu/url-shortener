@@ -106,7 +106,10 @@ func (db *Database) BatchSet(urls map[string]string) (map[string]string, error) 
 	}
 	defer tx.Rollback()
 
-	stmt, err := tx.PrepareContext(ctx, setQuery)
+	stmt, err := tx.PrepareContext(ctx, `INSERT INTO urls (short_url, original_url) 
+										VALUES ($1, $2) 
+										ON CONFLICT (original_url) DO NOTHING 
+										RETURNING short_url, original_url`)
 	if err != nil {
 		return nil, err
 	}
@@ -118,16 +121,15 @@ func (db *Database) BatchSet(urls map[string]string) (map[string]string, error) 
 		var storedShortURL, storedOriginalURL string
 		err = stmt.QueryRowContext(ctx, shortURL, originalURL).Scan(&storedShortURL, &storedOriginalURL)
 
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			db.logger.Errorw("Failed to insert URL", "shortURL", shortURL, "originalURL", originalURL, "err", err)
-			return nil, err
-		}
-
 		if errors.Is(err, sql.ErrNoRows) {
-			err = tx.QueryRowContext(ctx, `SELECT short_url FROM urls WHERE original_url = $1`, originalURL).Scan(&storedShortURL)
+			err = tx.QueryRowContext(ctx, `SELECT short_url, original_url FROM urls WHERE original_url = $1`, originalURL).
+				Scan(&storedShortURL, &storedOriginalURL)
 			if err != nil {
 				return nil, err
 			}
+		} else if err != nil {
+			db.logger.Errorw("Failed to insert URL", "shortURL", shortURL, "originalURL", originalURL, "err", err)
+			return nil, err
 		}
 
 		result[storedShortURL] = storedOriginalURL

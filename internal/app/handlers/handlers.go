@@ -127,33 +127,39 @@ func (h *Handler) URLCreatorBatch(c *gin.Context) {
 		return
 	}
 
+	inputURLs := make([]string, len(requestURLs))
+	for i, req := range requestURLs {
+		inputURLs[i] = req.OriginalURL
+	}
+
+	// Функция ShortenURLs возвращает map[shortURL]originalURL
+	shortenedURLs, err := h.Service.ShortenURLs(inputURLs)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to shorten URLs"})
+		return
+	}
+
+	// Преобразуем в map[originalURL]shortURL
+	shortenedURLsMap := make(map[string]string, len(shortenedURLs))
+	for short, orig := range shortenedURLs {
+		shortenedURLsMap[orig] = short
+	}
+
 	responseURLs := make([]URLResponse, len(requestURLs))
-
-	conflict := false
-
-	for i, requestURL := range requestURLs {
-		shortURL, err := h.Service.ShortenURL(requestURL.OriginalURL)
-		if err != nil {
-			if errors.Is(err, service.ErrConflict) {
-				conflict = true
-			} else {
-				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to shorten URL"})
-				return
-			}
+	for i, req := range requestURLs {
+		shortURL, ok := shortenedURLsMap[req.OriginalURL]
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Mismatch in shortened URLs"})
+			return
 		}
-
 		responseURLs[i] = URLResponse{
-			CorrelationID: requestURL.CorrelationID,
+			CorrelationID: req.CorrelationID,
 			ShortURL:      h.cfg.BaseAddress + "/" + shortURL,
 		}
 	}
 
 	c.Header("Content-Type", "application/json")
-	if conflict {
-		c.JSON(http.StatusConflict, responseURLs)
-	} else {
-		c.JSON(http.StatusCreated, responseURLs)
-	}
+	c.JSON(http.StatusCreated, responseURLs)
 }
 
 func (h *Handler) GetURL(c *gin.Context) {
