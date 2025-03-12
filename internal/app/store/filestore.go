@@ -88,3 +88,40 @@ func (fs *FileStore) Set(shortURL, originalURL string) (string, error) {
 
 	return shortURL, nil
 }
+
+func (fs *FileStore) BatchSet(urls map[string]string) (map[string]string, error) {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	file, err := os.OpenFile(fs.filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	shortenedURLs := make(map[string]string)
+
+	for shortURL, originalURL := range urls {
+		for existingShort, storedOriginal := range fs.data {
+			if storedOriginal == originalURL {
+				shortenedURLs[originalURL] = existingShort
+				continue
+			}
+		}
+
+		fs.data[shortURL] = originalURL
+		shortenedURLs[originalURL] = shortURL
+
+		record := URLRecord{
+			UUID:        shortURL,
+			ShortURL:    shortURL,
+			OriginalURL: originalURL,
+		}
+
+		jsonData, _ := json.Marshal(record)
+		file.Write(jsonData)
+		file.Write([]byte("\n"))
+	}
+
+	return shortenedURLs, nil
+}

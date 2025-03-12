@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"github.com/aseptimu/url-shortener/internal/app/config"
 	"github.com/aseptimu/url-shortener/internal/app/service"
 	"github.com/aseptimu/url-shortener/internal/app/store"
@@ -25,7 +26,6 @@ func NewHandler(cfg *config.ConfigType, service service.URLShortener, db *store.
 
 func (h *Handler) Ping(c *gin.Context) {
 	h.logRequest(c)
-	defer c.Request.Body.Close()
 
 	if h.db == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Server doesn't use database"})
@@ -41,7 +41,6 @@ func (h *Handler) Ping(c *gin.Context) {
 
 func (h *Handler) URLCreator(c *gin.Context) {
 	h.logRequest(c)
-	defer c.Request.Body.Close()
 
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
@@ -55,14 +54,14 @@ func (h *Handler) URLCreator(c *gin.Context) {
 		return
 	}
 
-	shortURL, err, isConflict := h.Service.ShortenURL(text.String())
-	if err != nil {
+	shortURL, err := h.Service.ShortenURL(text.String())
+	if err != nil && !errors.Is(err, service.ErrConflict) {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	c.Header("Content-Type", "text/plain")
-	if isConflict {
+	if errors.Is(err, service.ErrConflict) {
 		c.String(http.StatusConflict, h.cfg.BaseAddress+"/"+shortURL)
 	} else {
 		c.String(http.StatusCreated, h.cfg.BaseAddress+"/"+shortURL)
@@ -71,7 +70,6 @@ func (h *Handler) URLCreator(c *gin.Context) {
 
 func (h *Handler) URLCreatorJSON(c *gin.Context) {
 	h.logRequest(c)
-	defer c.Request.Body.Close()
 
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
@@ -87,8 +85,8 @@ func (h *Handler) URLCreatorJSON(c *gin.Context) {
 		return
 	}
 
-	shortURL, err, isConflict := h.Service.ShortenURL(req.URL)
-	if err != nil {
+	shortURL, err := h.Service.ShortenURL(req.URL)
+	if err != nil && !errors.Is(err, service.ErrConflict) {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -99,7 +97,7 @@ func (h *Handler) URLCreatorJSON(c *gin.Context) {
 		Result: h.cfg.BaseAddress + "/" + shortURL,
 	}
 
-	if isConflict {
+	if errors.Is(err, service.ErrConflict) {
 		c.JSON(http.StatusConflict, resp)
 	} else {
 		c.JSON(http.StatusCreated, resp)
@@ -118,7 +116,6 @@ type URLResponse struct {
 
 func (h *Handler) URLCreatorBatch(c *gin.Context) {
 	h.logRequest(c)
-	defer c.Request.Body.Close()
 
 	var requestURLs []struct {
 		CorrelationID string `json:"correlation_id"`
@@ -135,13 +132,14 @@ func (h *Handler) URLCreatorBatch(c *gin.Context) {
 	conflict := false
 
 	for i, requestURL := range requestURLs {
-		shortURL, err, isConflict := h.Service.ShortenURL(requestURL.OriginalURL)
+		shortURL, err := h.Service.ShortenURL(requestURL.OriginalURL)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to shorten URL"})
-			return
-		}
-		if isConflict {
-			conflict = true
+			if errors.Is(err, service.ErrConflict) {
+				conflict = true
+			} else {
+				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to shorten URL"})
+				return
+			}
 		}
 
 		responseURLs[i] = URLResponse{
