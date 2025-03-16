@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func Run(addr string, cfg *config.ConfigType, db *store.Database, logger *zap.SugaredLogger) error {
+func Run(addr string, cfg *config.ConfigType, logger *zap.SugaredLogger) error {
 	gin.SetMode(gin.ReleaseMode)
 
 	logger.Infow("Initializing server", "address", addr)
@@ -21,11 +21,14 @@ func Run(addr string, cfg *config.ConfigType, db *store.Database, logger *zap.Su
 	router.Use(middleware.MiddlewareLogger(logger))
 	router.Use(middleware.GzipMiddleware())
 
+	var db *store.Database
 	var sourceStore service.Store = db
-
+	logger.Debugw("Connecting to database", "DB config", cfg.DSN)
 	if cfg.DSN != "" {
+		db = store.NewDB(cfg.DSN, logger)
 		logger.Debugw("Database mode enabled, initializing tables")
 		db.CreateTables(logger)
+		sourceStore = db
 	} else {
 		logger.Debugw("File storage mode enabled", "storagePath", cfg.FileStoragePath)
 		sourceStore = store.NewFileStore(cfg.FileStoragePath)

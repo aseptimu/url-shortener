@@ -4,17 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/aseptimu/url-shortener/internal/app/config"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	_ "github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
-	"time"
 )
 
 type Database struct {
-	db     *sql.DB
+	dbpool *pgxpool.Pool
 	logger *zap.SugaredLogger
 }
 
-const createTableQuery = `
+const CREATE_TABLE_QUERY = `
 	CREATE TABLE IF NOT EXISTS urls (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     short_url TEXT NOT NULL UNIQUE,
@@ -22,37 +24,39 @@ const createTableQuery = `
 )`
 
 func (db *Database) CreateTables(logger *zap.SugaredLogger) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), config.DB_TIMEOUT)
 	defer cancel()
-	if _, err := db.db.ExecContext(ctx, createTableQuery); err != nil {
-		logger.Fatalf("Failed to create tables: %v Query:\n%s\n", err, createTableQuery)
+	if _, err := db.dbpool.Exec(ctx, CREATE_TABLE_QUERY); err != nil {
+		logger.Fatalf("Failed to create tables: %v Query:\n%s\n", err, CREATE_TABLE_QUERY)
 	}
 }
 
 func NewDB(ps string, logger *zap.SugaredLogger) *Database {
-	db, err := sql.Open("pgx", ps)
+	dbpool, err := pgxpool.New(context.Background(), ps)
 	if err != nil {
 		logger.Panic("failed to connect to database", zap.Error(err))
 	}
 
-	return &Database{db, logger}
+	return &Database{dbpool, logger}
 }
 
-func (db *Database) Ping() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+func (db *Database) Ping(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, config.DB_TIMEOUT)
 	defer cancel()
-	err := db.db.PingContext(ctx)
+	err := db.dbpool.Ping(ctx)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (db *Database) Get(shortURL string) (originalURL string, ok bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+const GET_URL_QUERY = "SELECT original_url FROM urls WHERE short_url = $1"
+
+func (db *Database) Get(ctx context.Context, shortURL string) (originalURL string, ok bool) {
+	ctx, cancel := context.WithTimeout(ctx, config.DB_TIMEOUT)
 	defer cancel()
 
-	row := db.db.QueryRowContext(ctx, "SELECT original_url FROM urls WHERE short_url = $1", shortURL)
+	row := db.dbpool.QueryRow(ctx, GET_URL_QUERY, shortURL)
 	err := row.Scan(&originalURL)
 	if err != nil {
 		db.logger.Errorw("failed to query url", "shortURL", shortURL, "err", err)
@@ -62,18 +66,20 @@ func (db *Database) Get(shortURL string) (originalURL string, ok bool) {
 	return originalURL, row != nil
 }
 
-const setQuery = `INSERT INTO urls (short_url, original_url) 
+const SET_URL_QUERY = `INSERT INTO urls (short_url, original_url) 
          VALUES ($1, $2) 
          ON CONFLICT (original_url) DO NOTHING 
          RETURNING short_url`
 
-func (db *Database) Set(shortURL, originalURL string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+const GET_EXISTING_URL_QUERY = "SELECT short_url FROM urls WHERE original_url = $1"
+
+func (db *Database) Set(ctx context.Context, shortURL, originalURL string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, config.DB_TIMEOUT)
 	defer cancel()
 
 	db.logger.Debugw("Attempting to insert URL", "shortURL", shortURL, "originalURL", originalURL)
 
-	err := db.db.QueryRowContext(ctx, setQuery, shortURL, originalURL).Scan(&shortURL)
+	err := db.dbpool.QueryRow(ctx, SET_URL_QUERY, shortURL, originalURL).Scan(&shortURL)
 
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		db.logger.Errorw("Failed to insert URL", "shortURL", shortURL, "originalURL", originalURL, "err", err)
@@ -83,8 +89,7 @@ func (db *Database) Set(shortURL, originalURL string) (string, error) {
 	if errors.Is(err, sql.ErrNoRows) {
 		db.logger.Debugw("URL already exists, fetching short URL from DB", "originalURL", originalURL)
 
-		err = db.db.QueryRowContext(ctx,
-			`SELECT short_url FROM urls WHERE original_url = $1`, originalURL).Scan(&shortURL)
+		err = db.dbpool.QueryRow(ctx, GET_EXISTING_URL_QUERY, originalURL).Scan(&shortURL)
 
 		if err != nil {
 			db.logger.Errorw("Failed to retrieve existing short URL", "originalURL", originalURL, "err", err)
@@ -96,47 +101,40 @@ func (db *Database) Set(shortURL, originalURL string) (string, error) {
 	return shortURL, nil
 }
 
-func (db *Database) BatchSet(urls map[string]string) (map[string]string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+func (db *Database) BatchSet(ctx context.Context, urls map[string]string) (map[string]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, config.DB_TIMEOUT)
 	defer cancel()
 
-	tx, err := db.db.BeginTx(ctx, nil)
+	tx, err := db.dbpool.Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
-
-	stmt, err := tx.PrepareContext(ctx, `INSERT INTO urls (short_url, original_url) 
-										VALUES ($1, $2) 
-										ON CONFLICT (original_url) DO NOTHING 
-										RETURNING short_url, original_url`)
-	if err != nil {
-		return nil, err
-	}
-	defer stmt.Close()
+	defer tx.Rollback(ctx)
 
 	result := make(map[string]string)
 
 	for shortURL, originalURL := range urls {
-		var storedShortURL, storedOriginalURL string
-		err = stmt.QueryRowContext(ctx, shortURL, originalURL).Scan(&storedShortURL, &storedOriginalURL)
+		var storedShortURL string
+		err = tx.QueryRow(ctx, SET_URL_QUERY, shortURL, originalURL).Scan(&storedShortURL)
 
-		if errors.Is(err, sql.ErrNoRows) {
-			err = tx.QueryRowContext(ctx, `SELECT short_url, original_url FROM urls WHERE original_url = $1`, originalURL).
-				Scan(&storedShortURL, &storedOriginalURL)
-			if err != nil {
-				return nil, err
-			}
-		} else if err != nil {
+		if err != nil && err != pgx.ErrNoRows {
 			db.logger.Errorw("Failed to insert URL", "shortURL", shortURL, "originalURL", originalURL, "err", err)
 			return nil, err
 		}
 
-		result[storedShortURL] = storedOriginalURL
+		// Если вставка не сработала (конфликт), получаем уже существующую короткую ссылку
+		if err == pgx.ErrNoRows || storedShortURL == "" {
+			err = tx.QueryRow(ctx, GET_EXISTING_URL_QUERY, originalURL).Scan(&storedShortURL)
+			if err != nil {
+				db.logger.Errorw("Failed to retrieve existing short URL", "originalURL", originalURL, "err", err)
+				return nil, err
+			}
+		}
+
+		result[storedShortURL] = originalURL
 	}
 
-	err = tx.Commit()
-	if err != nil {
+	if err = tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 

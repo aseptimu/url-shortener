@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -17,20 +18,20 @@ import (
 
 type mockService struct{}
 
-func (m *mockService) ShortenURL(url string) (string, error) {
+func (m *mockService) ShortenURL(_ context.Context, url string) (string, error) {
 	if url == "http://example.com" {
 		return "abcdef", nil
 	}
 	return "", errors.New("invalid URL format")
 }
-func (m *mockService) ShortenURLs(inputs []string) (map[string]string, error) {
+func (m *mockService) ShortenURLs(_ context.Context, inputs []string) (map[string]string, error) {
 	if inputs[0] == "http://example.com" {
 		return map[string]string{"abcdef": ""}, nil
 	}
 	return map[string]string{"": ""}, errors.New("invalid URL format")
 }
 
-func (m *mockService) GetOriginalURL(input string) (string, bool) {
+func (m *mockService) GetOriginalURL(_ context.Context, input string) (string, bool) {
 	if input == "abcdef" {
 		return "http://example.com", true
 	}

@@ -32,7 +32,7 @@ func (h *Handler) Ping(c *gin.Context) {
 		return
 	}
 
-	err := h.db.Ping()
+	err := h.db.Ping(c.Request.Context())
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -54,9 +54,9 @@ func (h *Handler) URLCreator(c *gin.Context) {
 		return
 	}
 
-	shortURL, err := h.Service.ShortenURL(text.String())
+	shortURL, err := h.Service.ShortenURL(c.Request.Context(), text.String())
 	if err != nil && !errors.Is(err, service.ErrConflict) {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -85,7 +85,7 @@ func (h *Handler) URLCreatorJSON(c *gin.Context) {
 		return
 	}
 
-	shortURL, err := h.Service.ShortenURL(req.URL)
+	shortURL, err := h.Service.ShortenURL(c.Request.Context(), req.URL)
 	if err != nil && !errors.Is(err, service.ErrConflict) {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -133,7 +133,7 @@ func (h *Handler) URLCreatorBatch(c *gin.Context) {
 	}
 
 	// Функция ShortenURLs возвращает map[shortURL]originalURL
-	shortenedURLs, err := h.Service.ShortenURLs(inputURLs)
+	shortenedURLs, err := h.Service.ShortenURLs(c.Request.Context(), inputURLs)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to shorten URLs"})
 		return
@@ -165,7 +165,7 @@ func (h *Handler) URLCreatorBatch(c *gin.Context) {
 func (h *Handler) GetURL(c *gin.Context) {
 	h.logRequest(c)
 	key := c.Param("url")
-	originalURL, exists := h.Service.GetOriginalURL(key)
+	originalURL, exists := h.Service.GetOriginalURL(c.Request.Context(), key)
 	if !exists {
 		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "URL not found"})
 		return

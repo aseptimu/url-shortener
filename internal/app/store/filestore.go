@@ -2,6 +2,7 @@ package store
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"log"
 	"os"
@@ -66,14 +67,14 @@ func (fs *FileStore) saveToFile(shortURL, originalURL string) {
 	file.Write([]byte("\n"))
 }
 
-func (fs *FileStore) Get(shortURL string) (string, bool) {
+func (fs *FileStore) Get(_ context.Context, shortURL string) (string, bool) {
 	fs.mu.RLock()
 	defer fs.mu.RUnlock()
 	value, exists := fs.data[shortURL]
 	return value, exists
 }
 
-func (fs *FileStore) Set(shortURL, originalURL string) (string, error) {
+func (fs *FileStore) Set(_ context.Context, shortURL, originalURL string) (string, error) {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 
@@ -89,7 +90,7 @@ func (fs *FileStore) Set(shortURL, originalURL string) (string, error) {
 	return shortURL, nil
 }
 
-func (fs *FileStore) BatchSet(urls map[string]string) (map[string]string, error) {
+func (fs *FileStore) BatchSet(_ context.Context, urls map[string]string) (map[string]string, error) {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 
