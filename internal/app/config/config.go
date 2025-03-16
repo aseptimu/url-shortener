@@ -8,7 +8,7 @@ import (
 	"github.com/caarlos0/env/v11"
 )
 
-const DB_TIMEOUT = 5 * time.Second
+const DBTimeout = 5 * time.Second
 
 type ConfigType struct {
 	ServerAddress   string `env:"SERVER_ADDRESS"`
