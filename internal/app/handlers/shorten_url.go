@@ -5,7 +5,6 @@ import (
 	"errors"
 	"github.com/aseptimu/url-shortener/internal/app/config"
 	"github.com/aseptimu/url-shortener/internal/app/service"
-	"github.com/aseptimu/url-shortener/internal/app/store"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"io"
@@ -13,33 +12,17 @@ import (
 	"net/url"
 )
 
-type Handler struct {
+type ShortenHandler struct {
 	cfg     *config.ConfigType
 	Service service.URLShortener
-	db      *store.Database
 	logger  *zap.SugaredLogger
 }
 
-func NewHandler(cfg *config.ConfigType, service service.URLShortener, db *store.Database, logger *zap.SugaredLogger) *Handler {
-	return &Handler{cfg: cfg, Service: service, db: db, logger: logger}
+func NewShortenHandler(cfg *config.ConfigType, service service.URLShortener, logger *zap.SugaredLogger) *ShortenHandler {
+	return &ShortenHandler{cfg: cfg, Service: service, logger: logger}
 }
 
-func (h *Handler) Ping(c *gin.Context) {
-	h.logRequest(c)
-
-	if h.db == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Server doesn't use database"})
-		return
-	}
-
-	err := h.db.Ping(c.Request.Context())
-	if err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-}
-
-func (h *Handler) URLCreator(c *gin.Context) {
+func (h *ShortenHandler) URLCreator(c *gin.Context) {
 	h.logRequest(c)
 
 	body, err := io.ReadAll(c.Request.Body)
@@ -68,7 +51,7 @@ func (h *Handler) URLCreator(c *gin.Context) {
 	}
 }
 
-func (h *Handler) URLCreatorJSON(c *gin.Context) {
+func (h *ShortenHandler) URLCreatorJSON(c *gin.Context) {
 	h.logRequest(c)
 
 	body, err := io.ReadAll(c.Request.Body)
@@ -114,7 +97,7 @@ type URLResponse struct {
 	ShortURL      string `json:"short_url"`
 }
 
-func (h *Handler) URLCreatorBatch(c *gin.Context) {
+func (h *ShortenHandler) URLCreatorBatch(c *gin.Context) {
 	h.logRequest(c)
 
 	var requestURLs []struct {
@@ -162,7 +145,7 @@ func (h *Handler) URLCreatorBatch(c *gin.Context) {
 	c.JSON(http.StatusCreated, responseURLs)
 }
 
-func (h *Handler) GetURL(c *gin.Context) {
+func (h *ShortenHandler) GetURL(c *gin.Context) {
 	h.logRequest(c)
 	key := c.Param("url")
 	originalURL, exists := h.Service.GetOriginalURL(c.Request.Context(), key)
@@ -176,7 +159,7 @@ func (h *Handler) GetURL(c *gin.Context) {
 	c.String(http.StatusTemporaryRedirect, originalURL)
 }
 
-func (h *Handler) logRequest(c *gin.Context) {
+func (h *ShortenHandler) logRequest(c *gin.Context) {
 	h.logger.Debugw("Endpoint called",
 		"method", c.Request.Method,
 		"path", c.FullPath(),

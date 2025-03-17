@@ -38,13 +38,13 @@ func (m *mockService) GetOriginalURL(_ context.Context, input string) (string, b
 	return "", false
 }
 
-func newTestHandler() *Handler {
+func newTestHandler() *ShortenHandler {
 	cfg := &config.ConfigType{BaseAddress: "http://localhost:8080"}
 
 	logger, _ := zap.NewDevelopment()
 	sugar := logger.Sugar()
 
-	return NewHandler(cfg, &mockService{}, nil, sugar)
+	return NewShortenHandler(cfg, &mockService{}, sugar)
 }
 
 func TestURLCreator(t *testing.T) {

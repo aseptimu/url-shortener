@@ -35,13 +35,14 @@ func Run(addr string, cfg *config.ConfigType, logger *zap.SugaredLogger) error {
 	}
 
 	urlService := service.NewURLService(sourceStore)
-	handler := handlers.NewHandler(cfg, urlService, db, logger)
+	shortenHandler := handlers.NewShortenHandler(cfg, urlService, logger)
+	pingHandler := handlers.NewPingHandler(db)
 
-	router.GET("/:url", handler.GetURL)
-	router.GET("/ping", handler.Ping)
-	router.POST("/", handler.URLCreator)
-	router.POST("/api/shorten", handler.URLCreatorJSON)
-	router.POST("/api/shorten/batch", handler.URLCreatorBatch)
+	router.GET("/:url", shortenHandler.GetURL)
+	router.GET("/ping", pingHandler.Ping)
+	router.POST("/", shortenHandler.URLCreator)
+	router.POST("/api/shorten", shortenHandler.URLCreatorJSON)
+	router.POST("/api/shorten/batch", shortenHandler.URLCreatorBatch)
 
 	logger.Debugw("Starting server", "address", addr)
 	err := router.Run(addr)
