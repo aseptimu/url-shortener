@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"net/url"
 
@@ -8,13 +9,15 @@ import (
 )
 
 type Store interface {
-	Get(shortURL string) (string, bool)
-	Set(shortURL, originalURL string)
+	Get(ctx context.Context, shortURL string) (string, bool)
+	Set(ctx context.Context, shortURL, originalURL string) (string, error)
+	BatchSet(ctx context.Context, urls map[string]string) (map[string]string, error)
 }
 
 type URLShortener interface {
-	ShortenURL(input string) (string, error)
-	GetOriginalURL(input string) (string, bool)
+	ShortenURL(ctx context.Context, input string) (string, error)
+	ShortenURLs(ctx context.Context, inputs []string) (map[string]string, error)
+	GetOriginalURL(ctx context.Context, input string) (string, bool)
 }
 
 type URLService struct {
@@ -30,18 +33,39 @@ func (s *URLService) isValidURL(input string) bool {
 	return err == nil && parsedURI.Scheme != "" && parsedURI.Host != ""
 }
 
-func (s *URLService) ShortenURL(input string) (string, error) {
+var ErrConflict = errors.New("URL already exists")
+
+func (s *URLService) ShortenURL(ctx context.Context, input string) (string, error) {
 	if !s.isValidURL(input) {
 		return "", errors.New("invalid URL format")
 	}
 
 	shortURL := utils.RandomString(6)
+	storeURL, err := s.store.Set(ctx, shortURL, input)
+	if err != nil {
+		return "", err
+	}
 
-	s.store.Set(shortURL, input)
+	if storeURL != shortURL {
+		return storeURL, ErrConflict
+	}
 
 	return shortURL, nil
 }
 
-func (s *URLService) GetOriginalURL(input string) (string, bool) {
-	return s.store.Get(input)
+func (s *URLService) ShortenURLs(ctx context.Context, inputs []string) (map[string]string, error) {
+	urls := make(map[string]string)
+	for _, input := range inputs {
+		if !s.isValidURL(input) {
+			return nil, errors.New("one or more URLs are invalid")
+		}
+		shortURL := utils.RandomString(6)
+		urls[shortURL] = input
+	}
+
+	return s.store.BatchSet(ctx, urls)
+}
+
+func (s *URLService) GetOriginalURL(ctx context.Context, input string) (string, bool) {
+	return s.store.Get(ctx, input)
 }

@@ -2,6 +2,7 @@ package store
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"log"
 	"os"
@@ -66,16 +67,62 @@ func (fs *FileStore) saveToFile(shortURL, originalURL string) {
 	file.Write([]byte("\n"))
 }
 
-func (fs *FileStore) Get(shortURL string) (string, bool) {
+func (fs *FileStore) Get(_ context.Context, shortURL string) (string, bool) {
 	fs.mu.RLock()
 	defer fs.mu.RUnlock()
 	value, exists := fs.data[shortURL]
 	return value, exists
 }
 
-func (fs *FileStore) Set(shortURL, originalURL string) {
+func (fs *FileStore) Set(_ context.Context, shortURL, originalURL string) (string, error) {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
+
+	for existingShort, storedOriginal := range fs.data {
+		if storedOriginal == originalURL {
+			return existingShort, nil
+		}
+	}
+
 	fs.data[shortURL] = originalURL
 	fs.saveToFile(shortURL, originalURL)
+
+	return shortURL, nil
+}
+
+func (fs *FileStore) BatchSet(_ context.Context, urls map[string]string) (map[string]string, error) {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	file, err := os.OpenFile(fs.filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	shortenedURLs := make(map[string]string)
+
+	for shortURL, originalURL := range urls {
+		for existingShort, storedOriginal := range fs.data {
+			if storedOriginal == originalURL {
+				shortenedURLs[originalURL] = existingShort
+				continue
+			}
+		}
+
+		fs.data[shortURL] = originalURL
+		shortenedURLs[originalURL] = shortURL
+
+		record := URLRecord{
+			UUID:        shortURL,
+			ShortURL:    shortURL,
+			OriginalURL: originalURL,
+		}
+
+		jsonData, _ := json.Marshal(record)
+		file.Write(jsonData)
+		file.Write([]byte("\n"))
+	}
+
+	return shortenedURLs, nil
 }
