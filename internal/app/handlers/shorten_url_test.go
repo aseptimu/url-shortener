@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"errors"
+	"github.com/aseptimu/url-shortener/internal/app/service"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -18,13 +19,13 @@ import (
 
 type mockService struct{}
 
-func (m *mockService) ShortenURL(_ context.Context, url string) (string, error) {
+func (m *mockService) ShortenURL(_ context.Context, url string, _ string) (string, error) {
 	if url == "http://example.com" {
 		return "abcdef", nil
 	}
 	return "", errors.New("invalid URL format")
 }
-func (m *mockService) ShortenURLs(_ context.Context, inputs []string) (map[string]string, error) {
+func (m *mockService) ShortenURLs(_ context.Context, inputs []string, _ string) (map[string]string, error) {
 	if inputs[0] == "http://example.com" {
 		return map[string]string{"abcdef": ""}, nil
 	}
@@ -36,6 +37,9 @@ func (m *mockService) GetOriginalURL(_ context.Context, input string) (string, b
 		return "http://example.com", true
 	}
 	return "", false
+}
+func (m *mockService) GetUserURLs(ctx context.Context, userID string) ([]service.URLRecord, error) {
+	return nil, nil
 }
 
 func newTestHandler() *ShortenHandler {

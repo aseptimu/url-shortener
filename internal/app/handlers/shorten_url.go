@@ -25,10 +25,11 @@ func NewShortenHandler(cfg *config.ConfigType, service service.URLShortener, log
 func (h *ShortenHandler) URLCreator(c *gin.Context) {
 	h.logRequest(c)
 
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "User ID not found"})
-		return
+	var userIDStr string
+	if uid, exists := c.Get("userID"); exists {
+		if str, ok := uid.(string); ok {
+			userIDStr = str
+		}
 	}
 
 	body, err := io.ReadAll(c.Request.Body)
@@ -43,7 +44,7 @@ func (h *ShortenHandler) URLCreator(c *gin.Context) {
 		return
 	}
 
-	shortURL, err := h.Service.ShortenURL(c.Request.Context(), text.String(), userID.(string))
+	shortURL, err := h.Service.ShortenURL(c.Request.Context(), text.String(), userIDStr)
 	if err != nil && !errors.Is(err, service.ErrConflict) {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -60,10 +61,11 @@ func (h *ShortenHandler) URLCreator(c *gin.Context) {
 func (h *ShortenHandler) URLCreatorJSON(c *gin.Context) {
 	h.logRequest(c)
 
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "User ID not found"})
-		return
+	var userIDStr string
+	if uid, exists := c.Get("userID"); exists {
+		if str, ok := uid.(string); ok {
+			userIDStr = str
+		}
 	}
 
 	body, err := io.ReadAll(c.Request.Body)
@@ -80,7 +82,7 @@ func (h *ShortenHandler) URLCreatorJSON(c *gin.Context) {
 		return
 	}
 
-	shortURL, err := h.Service.ShortenURL(c.Request.Context(), req.URL, userID.(string))
+	shortURL, err := h.Service.ShortenURL(c.Request.Context(), req.URL, userIDStr)
 	if err != nil && !errors.Is(err, service.ErrConflict) {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -112,10 +114,11 @@ type URLResponse struct {
 func (h *ShortenHandler) URLCreatorBatch(c *gin.Context) {
 	h.logRequest(c)
 
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "User ID not found"})
-		return
+	var userIDStr string
+	if uid, exists := c.Get("userID"); exists {
+		if str, ok := uid.(string); ok {
+			userIDStr = str
+		}
 	}
 
 	var requestURLs []struct {
@@ -134,7 +137,7 @@ func (h *ShortenHandler) URLCreatorBatch(c *gin.Context) {
 	}
 
 	// Функция ShortenURLs возвращает map[shortURL]originalURL
-	shortenedURLs, err := h.Service.ShortenURLs(c.Request.Context(), inputURLs, userID.(string))
+	shortenedURLs, err := h.Service.ShortenURLs(c.Request.Context(), inputURLs, userIDStr)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to shorten URLs"})
 		return
