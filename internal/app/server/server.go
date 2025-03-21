@@ -6,6 +6,7 @@ import (
 	"github.com/aseptimu/url-shortener/internal/app/middleware"
 	"github.com/aseptimu/url-shortener/internal/app/service"
 	"github.com/aseptimu/url-shortener/internal/app/store"
+	"github.com/aseptimu/url-shortener/internal/app/utils"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -21,13 +22,23 @@ func Run(addr string, cfg *config.ConfigType, logger *zap.SugaredLogger) error {
 	router.Use(middleware.MiddlewareLogger(logger))
 	router.Use(middleware.GzipMiddleware())
 
+	secretKey := cfg.SecretKey
+	if cfg.SecretKey == "" {
+		logger.Warn("SecretKey not provided, generating a random one (will reset on each restart)")
+		cfg.SecretKey = utils.GenerateRandomSecretKey()
+	}
+	router.Use(middleware.AuthMiddleware(secretKey, logger))
+
 	var db *store.Database
 	var sourceStore service.Store = db
 	logger.Debugw("Connecting to database", "DB config", cfg.DSN)
 	if cfg.DSN != "" {
+		if err := store.MigrateDB(cfg.DSN, logger); err != nil {
+			logger.Fatalf("Database migration failed: %v", err)
+		}
+
 		db = store.NewDB(cfg.DSN, logger)
 		logger.Debugw("Database mode enabled, initializing tables")
-		db.CreateTables(logger)
 		sourceStore = db
 	} else {
 		logger.Debugw("File storage mode enabled", "storagePath", cfg.FileStoragePath)
@@ -43,6 +54,7 @@ func Run(addr string, cfg *config.ConfigType, logger *zap.SugaredLogger) error {
 	router.POST("/", shortenHandler.URLCreator)
 	router.POST("/api/shorten", shortenHandler.URLCreatorJSON)
 	router.POST("/api/shorten/batch", shortenHandler.URLCreatorBatch)
+	router.GET("/api/user/urls", shortenHandler.GetUserURLs)
 
 	logger.Debugw("Starting server", "address", addr)
 	err := router.Run(addr)

@@ -8,16 +8,25 @@ import (
 	"github.com/aseptimu/url-shortener/internal/app/utils"
 )
 
+type URLRecord struct {
+	UUID        string `json:"uuid"`
+	ShortURL    string `json:"short_url"`
+	OriginalURL string `json:"original_url"`
+	UserID      string `json:"user_id"`
+}
+
 type Store interface {
 	Get(ctx context.Context, shortURL string) (string, bool)
-	Set(ctx context.Context, shortURL, originalURL string) (string, error)
-	BatchSet(ctx context.Context, urls map[string]string) (map[string]string, error)
+	GetUserURLs(ctx context.Context, userID string) ([]URLRecord, error)
+	Set(ctx context.Context, shortURL, originalURL string, userID string) (string, error)
+	BatchSet(ctx context.Context, urls map[string]string, userID string) (map[string]string, error)
 }
 
 type URLShortener interface {
-	ShortenURL(ctx context.Context, input string) (string, error)
-	ShortenURLs(ctx context.Context, inputs []string) (map[string]string, error)
+	ShortenURL(ctx context.Context, input string, userID string) (string, error)
+	ShortenURLs(ctx context.Context, inputs []string, userID string) (map[string]string, error)
 	GetOriginalURL(ctx context.Context, input string) (string, bool)
+	GetUserURLs(ctx context.Context, userID string) ([]URLRecord, error)
 }
 
 type URLService struct {
@@ -35,13 +44,13 @@ func (s *URLService) isValidURL(input string) bool {
 
 var ErrConflict = errors.New("URL already exists")
 
-func (s *URLService) ShortenURL(ctx context.Context, input string) (string, error) {
+func (s *URLService) ShortenURL(ctx context.Context, input string, userID string) (string, error) {
 	if !s.isValidURL(input) {
 		return "", errors.New("invalid URL format")
 	}
 
 	shortURL := utils.RandomString(6)
-	storeURL, err := s.store.Set(ctx, shortURL, input)
+	storeURL, err := s.store.Set(ctx, shortURL, input, userID)
 	if err != nil {
 		return "", err
 	}
@@ -53,7 +62,7 @@ func (s *URLService) ShortenURL(ctx context.Context, input string) (string, erro
 	return shortURL, nil
 }
 
-func (s *URLService) ShortenURLs(ctx context.Context, inputs []string) (map[string]string, error) {
+func (s *URLService) ShortenURLs(ctx context.Context, inputs []string, userID string) (map[string]string, error) {
 	urls := make(map[string]string)
 	for _, input := range inputs {
 		if !s.isValidURL(input) {
@@ -63,9 +72,13 @@ func (s *URLService) ShortenURLs(ctx context.Context, inputs []string) (map[stri
 		urls[shortURL] = input
 	}
 
-	return s.store.BatchSet(ctx, urls)
+	return s.store.BatchSet(ctx, urls, userID)
 }
 
 func (s *URLService) GetOriginalURL(ctx context.Context, input string) (string, bool) {
 	return s.store.Get(ctx, input)
+}
+
+func (s *URLService) GetUserURLs(ctx context.Context, userID string) ([]URLRecord, error) {
+	return s.store.GetUserURLs(ctx, userID)
 }

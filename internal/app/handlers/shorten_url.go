@@ -25,6 +25,12 @@ func NewShortenHandler(cfg *config.ConfigType, service service.URLShortener, log
 func (h *ShortenHandler) URLCreator(c *gin.Context) {
 	h.logRequest(c)
 
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "User ID not found"})
+		return
+	}
+
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Failed to read body"})
@@ -37,7 +43,7 @@ func (h *ShortenHandler) URLCreator(c *gin.Context) {
 		return
 	}
 
-	shortURL, err := h.Service.ShortenURL(c.Request.Context(), text.String())
+	shortURL, err := h.Service.ShortenURL(c.Request.Context(), text.String(), userID.(string))
 	if err != nil && !errors.Is(err, service.ErrConflict) {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -54,6 +60,12 @@ func (h *ShortenHandler) URLCreator(c *gin.Context) {
 func (h *ShortenHandler) URLCreatorJSON(c *gin.Context) {
 	h.logRequest(c)
 
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "User ID not found"})
+		return
+	}
+
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Failed to read request body"})
@@ -68,7 +80,7 @@ func (h *ShortenHandler) URLCreatorJSON(c *gin.Context) {
 		return
 	}
 
-	shortURL, err := h.Service.ShortenURL(c.Request.Context(), req.URL)
+	shortURL, err := h.Service.ShortenURL(c.Request.Context(), req.URL, userID.(string))
 	if err != nil && !errors.Is(err, service.ErrConflict) {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -100,6 +112,12 @@ type URLResponse struct {
 func (h *ShortenHandler) URLCreatorBatch(c *gin.Context) {
 	h.logRequest(c)
 
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "User ID not found"})
+		return
+	}
+
 	var requestURLs []struct {
 		CorrelationID string `json:"correlation_id"`
 		OriginalURL   string `json:"original_url"`
@@ -116,7 +134,7 @@ func (h *ShortenHandler) URLCreatorBatch(c *gin.Context) {
 	}
 
 	// Функция ShortenURLs возвращает map[shortURL]originalURL
-	shortenedURLs, err := h.Service.ShortenURLs(c.Request.Context(), inputURLs)
+	shortenedURLs, err := h.Service.ShortenURLs(c.Request.Context(), inputURLs, userID.(string))
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to shorten URLs"})
 		return
@@ -157,6 +175,49 @@ func (h *ShortenHandler) GetURL(c *gin.Context) {
 	c.Header("Location", originalURL)
 	c.Header("Content-Type", "text/plain")
 	c.String(http.StatusTemporaryRedirect, originalURL)
+}
+
+func (h *ShortenHandler) GetUserURLs(c *gin.Context) {
+	h.logRequest(c)
+
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	userIDStr, ok := userID.(string)
+	if !ok || userIDStr == "" {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	records, err := h.Service.GetUserURLs(c.Request.Context(), userIDStr)
+	if err != nil {
+		h.logger.Errorw("Failed to get user URLs", "error", err)
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if len(records) == 0 {
+		c.Status(http.StatusNoContent)
+		return
+	}
+
+	var resp []struct {
+		ShortURL    string `json:"short_url"`
+		OriginalURL string `json:"original_url"`
+	}
+	for _, rec := range records {
+		resp = append(resp, struct {
+			ShortURL    string `json:"short_url"`
+			OriginalURL string `json:"original_url"`
+		}{
+			ShortURL:    h.cfg.BaseAddress + "/" + rec.ShortURL,
+			OriginalURL: rec.OriginalURL,
+		})
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
 
 func (h *ShortenHandler) logRequest(c *gin.Context) {

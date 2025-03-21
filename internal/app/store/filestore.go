@@ -4,27 +4,22 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/aseptimu/url-shortener/internal/app/service"
 	"log"
 	"os"
 	"sync"
 )
 
-type URLRecord struct {
-	UUID        string `json:"uuid"`
-	ShortURL    string `json:"short_url"`
-	OriginalURL string `json:"original_url"`
-}
-
 type FileStore struct {
 	mu       sync.RWMutex
 	filePath string
-	data     map[string]string
+	data     map[string]service.URLRecord
 }
 
 func NewFileStore(filePath string) *FileStore {
 	store := &FileStore{
 		filePath: filePath,
-		data:     make(map[string]string),
+		data:     make(map[string]service.URLRecord),
 	}
 	store.loadFromFile()
 	return store
@@ -42,25 +37,19 @@ func (fs *FileStore) loadFromFile() {
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		var record URLRecord
+		var record service.URLRecord
 		if err := json.Unmarshal(scanner.Bytes(), &record); err == nil {
-			fs.data[record.ShortURL] = record.OriginalURL
+			fs.data[record.ShortURL] = record
 		}
 	}
 }
 
-func (fs *FileStore) saveToFile(shortURL, originalURL string) {
+func (fs *FileStore) saveToFile(record service.URLRecord) {
 	file, err := os.OpenFile(fs.filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Panic(err)
 	}
 	defer file.Close()
-
-	record := URLRecord{
-		UUID:        shortURL,
-		ShortURL:    shortURL,
-		OriginalURL: originalURL,
-	}
 
 	jsonData, _ := json.Marshal(record)
 	file.Write(jsonData)
@@ -70,27 +59,49 @@ func (fs *FileStore) saveToFile(shortURL, originalURL string) {
 func (fs *FileStore) Get(_ context.Context, shortURL string) (string, bool) {
 	fs.mu.RLock()
 	defer fs.mu.RUnlock()
-	value, exists := fs.data[shortURL]
-	return value, exists
+	record, exists := fs.data[shortURL]
+	if !exists {
+		return "", false
+	}
+	return record.OriginalURL, true
 }
 
-func (fs *FileStore) Set(_ context.Context, shortURL, originalURL string) (string, error) {
+func (fs *FileStore) GetUserURLs(_ context.Context, userID string) ([]service.URLRecord, error) {
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
+
+	var results []service.URLRecord
+	for _, record := range fs.data {
+		if record.UserID == userID {
+			results = append(results, record)
+		}
+	}
+	return results, nil
+}
+
+func (fs *FileStore) Set(_ context.Context, shortURL, originalURL, userID string) (string, error) {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 
-	for existingShort, storedOriginal := range fs.data {
-		if storedOriginal == originalURL {
-			return existingShort, nil
+	for _, record := range fs.data {
+		if record.OriginalURL == originalURL {
+			return record.ShortURL, nil
 		}
 	}
 
-	fs.data[shortURL] = originalURL
-	fs.saveToFile(shortURL, originalURL)
+	newRecord := service.URLRecord{
+		UUID:        shortURL,
+		ShortURL:    shortURL,
+		OriginalURL: originalURL,
+		UserID:      userID,
+	}
+	fs.data[shortURL] = newRecord
+	fs.saveToFile(newRecord)
 
 	return shortURL, nil
 }
 
-func (fs *FileStore) BatchSet(_ context.Context, urls map[string]string) (map[string]string, error) {
+func (fs *FileStore) BatchSet(_ context.Context, urls map[string]string, userID string) (map[string]string, error) {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 
@@ -103,23 +114,28 @@ func (fs *FileStore) BatchSet(_ context.Context, urls map[string]string) (map[st
 	shortenedURLs := make(map[string]string)
 
 	for shortURL, originalURL := range urls {
-		for existingShort, storedOriginal := range fs.data {
-			if storedOriginal == originalURL {
-				shortenedURLs[originalURL] = existingShort
-				continue
+		found := false
+		for _, record := range fs.data {
+			if record.OriginalURL == originalURL {
+				shortenedURLs[originalURL] = record.ShortURL
+				found = true
+				break
 			}
 		}
+		if found {
+			continue
+		}
 
-		fs.data[shortURL] = originalURL
-		shortenedURLs[originalURL] = shortURL
-
-		record := URLRecord{
+		newRecord := service.URLRecord{
 			UUID:        shortURL,
 			ShortURL:    shortURL,
 			OriginalURL: originalURL,
+			UserID:      userID,
 		}
+		fs.data[shortURL] = newRecord
+		shortenedURLs[originalURL] = shortURL
 
-		jsonData, _ := json.Marshal(record)
+		jsonData, _ := json.Marshal(newRecord)
 		file.Write(jsonData)
 		file.Write([]byte("\n"))
 	}
