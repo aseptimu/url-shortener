@@ -32,14 +32,17 @@ func (m *mockService) ShortenURLs(_ context.Context, inputs []string, _ string) 
 	return map[string]string{"": ""}, errors.New("invalid URL format")
 }
 
-func (m *mockService) GetOriginalURL(_ context.Context, input string) (string, bool) {
+func (m *mockService) GetOriginalURL(_ context.Context, input string) (string, bool, bool) {
 	if input == "abcdef" {
-		return "http://example.com", true
+		return "http://example.com", true, false
 	}
-	return "", false
+	return "", false, false
 }
 func (m *mockService) GetUserURLs(ctx context.Context, userID string) ([]service.URLRecord, error) {
 	return nil, nil
+}
+func (m *mockService) DeleteURLs(ctx context.Context, shortURLs []string, userID string) error {
+	return nil
 }
 
 func newTestHandler() *ShortenHandler {
