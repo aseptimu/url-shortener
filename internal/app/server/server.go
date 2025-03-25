@@ -55,6 +55,7 @@ func Run(addr string, cfg *config.ConfigType, logger *zap.SugaredLogger) error {
 	router.POST("/api/shorten", shortenHandler.URLCreatorJSON)
 	router.POST("/api/shorten/batch", shortenHandler.URLCreatorBatch)
 	router.GET("/api/user/urls", shortenHandler.GetUserURLs)
+	router.DELETE("/api/user/urls", shortenHandler.DeleteUserURLs)
 
 	logger.Debugw("Starting server", "address", addr)
 	err := router.Run(addr)

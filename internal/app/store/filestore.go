@@ -56,14 +56,30 @@ func (fs *FileStore) saveToFile(record service.URLRecord) {
 	file.Write([]byte("\n"))
 }
 
-func (fs *FileStore) Get(_ context.Context, shortURL string) (string, bool) {
+func (fs *FileStore) rewriteFile() error {
+	file, err := os.OpenFile(fs.filePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	writer := bufio.NewWriter(file)
+	for _, record := range fs.data {
+		jsonData, _ := json.Marshal(record)
+		writer.Write(jsonData)
+		writer.WriteString("\n")
+	}
+	return writer.Flush()
+}
+
+func (fs *FileStore) Get(_ context.Context, shortURL string) (string, bool, bool) {
 	fs.mu.RLock()
 	defer fs.mu.RUnlock()
 	record, exists := fs.data[shortURL]
-	if !exists {
-		return "", false
+	if !exists || record.DeletedFlag {
+		return "", false, false
 	}
-	return record.OriginalURL, true
+	return record.OriginalURL, true, record.DeletedFlag
 }
 
 func (fs *FileStore) GetUserURLs(_ context.Context, userID string) ([]service.URLRecord, error) {
@@ -72,7 +88,7 @@ func (fs *FileStore) GetUserURLs(_ context.Context, userID string) ([]service.UR
 
 	var results []service.URLRecord
 	for _, record := range fs.data {
-		if record.UserID == userID {
+		if record.UserID == userID && !record.DeletedFlag {
 			results = append(results, record)
 		}
 	}
@@ -94,6 +110,7 @@ func (fs *FileStore) Set(_ context.Context, shortURL, originalURL, userID string
 		ShortURL:    shortURL,
 		OriginalURL: originalURL,
 		UserID:      userID,
+		DeletedFlag: false,
 	}
 	fs.data[shortURL] = newRecord
 	fs.saveToFile(newRecord)
@@ -131,6 +148,7 @@ func (fs *FileStore) BatchSet(_ context.Context, urls map[string]string, userID 
 			ShortURL:    shortURL,
 			OriginalURL: originalURL,
 			UserID:      userID,
+			DeletedFlag: false,
 		}
 		fs.data[shortURL] = newRecord
 		shortenedURLs[originalURL] = shortURL
@@ -141,4 +159,19 @@ func (fs *FileStore) BatchSet(_ context.Context, urls map[string]string, userID 
 	}
 
 	return shortenedURLs, nil
+}
+
+func (fs *FileStore) BatchDelete(_ context.Context, shortURLs []string, userID string) error {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	for _, shortURL := range shortURLs {
+		record, exists := fs.data[shortURL]
+		if exists && record.UserID == userID {
+			record.DeletedFlag = true
+			fs.data[shortURL] = record
+		}
+	}
+
+	return fs.rewriteFile()
 }

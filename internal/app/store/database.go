@@ -36,20 +36,21 @@ func (db *Database) Ping(ctx context.Context) error {
 	return nil
 }
 
-const GetURLQuery = "SELECT original_url FROM urls WHERE short_url = $1"
+const GetURLQuery = "SELECT original_url, is_deleted FROM urls WHERE short_url = $1"
 
-func (db *Database) Get(ctx context.Context, shortURL string) (originalURL string, ok bool) {
+func (db *Database) Get(ctx context.Context, shortURL string) (originalURL string, ok bool, isDeleted bool) {
 	ctx, cancel := context.WithTimeout(ctx, config.DBTimeout)
 	defer cancel()
 
 	row := db.dbpool.QueryRow(ctx, GetURLQuery, shortURL)
-	err := row.Scan(&originalURL)
+	var deleted bool
+	err := row.Scan(&originalURL, &deleted)
 	if err != nil {
 		db.logger.Errorw("failed to query url", "shortURL", shortURL, "err", err)
-		return "", false
+		return "", false, false
 	}
 
-	return originalURL, row != nil
+	return originalURL, row != nil, deleted
 }
 
 const GetURLsByUserID = "SELECT short_url, original_url FROM urls WHERE user_id = $1"
@@ -145,4 +146,20 @@ func (db *Database) BatchSet(ctx context.Context, urls map[string]string, userID
 	}
 
 	return result, nil
+}
+
+const BatchDeleteQuery = "UPDATE urls SET is_deleted = TRUE WHERE short_url = ANY($1) AND user_id = $2"
+
+func (db *Database) BatchDelete(ctx context.Context, shortURLs []string, userID string) error {
+	ctx, cancel := context.WithTimeout(ctx, config.DBTimeout)
+	defer cancel()
+
+	cmdTag, err := db.dbpool.Exec(ctx, BatchDeleteQuery, shortURLs, userID)
+	if err != nil {
+		db.logger.Errorw("Failed to batch delete URLs", "error", err)
+		return err
+	}
+
+	db.logger.Debugw("Batch delete completed", "rowsAffected", cmdTag.RowsAffected())
+	return nil
 }

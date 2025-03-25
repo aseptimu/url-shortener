@@ -169,9 +169,13 @@ func (h *ShortenHandler) URLCreatorBatch(c *gin.Context) {
 func (h *ShortenHandler) GetURL(c *gin.Context) {
 	h.logRequest(c)
 	key := c.Param("url")
-	originalURL, exists := h.Service.GetOriginalURL(c.Request.Context(), key)
+	originalURL, exists, deleted := h.Service.GetOriginalURL(c.Request.Context(), key)
 	if !exists {
 		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "URL not found"})
+		return
+	}
+	if deleted {
+		c.AbortWithStatusJSON(http.StatusGone, gin.H{"error": "URL is deleted"})
 		return
 	}
 
@@ -221,6 +225,35 @@ func (h *ShortenHandler) GetUserURLs(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, resp)
+}
+
+func (h *ShortenHandler) DeleteUserURLs(c *gin.Context) {
+	h.logRequest(c)
+
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	userIDStr, ok := userID.(string)
+	if !ok || userIDStr == "" {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	var urls []string
+	if err := json.NewDecoder(c.Request.Body).Decode(&urls); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format"})
+		return
+	}
+
+	go func(urls []string, userID string) {
+		if err := h.Service.DeleteURLs(c.Request.Context(), urls, userID); err != nil {
+			h.logger.Errorw("Failed to delete URLs", "error", err)
+		}
+	}(urls, userIDStr)
+
+	c.Status(http.StatusAccepted)
 }
 
 func (h *ShortenHandler) logRequest(c *gin.Context) {
