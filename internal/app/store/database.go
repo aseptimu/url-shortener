@@ -154,7 +154,7 @@ func (db *Database) BatchDelete(ctx context.Context, shortURLs []string, userID 
 	ctx, cancel := context.WithTimeout(ctx, config.DBTimeout)
 	defer cancel()
 
-	cmdTag, err := db.dbpool.Exec(ctx, BatchDeleteQuery, shortURLs, userID)
+	cmdTag, err := db.dbpool.Exec(context.Background(), BatchDeleteQuery, shortURLs, userID)
 	if err != nil {
 		db.logger.Errorw("Failed to batch delete URLs", "error", err)
 		return err
