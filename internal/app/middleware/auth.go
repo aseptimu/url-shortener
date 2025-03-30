@@ -23,6 +23,7 @@ func AuthMiddleware(secretKey string, logger *zap.SugaredLogger) gin.HandlerFunc
 		if err != nil {
 			logger.Debug("JWT cookie not found, generating new one")
 			issueNewToken(c, secretKey, logger)
+			return
 		}
 
 		claims := &Claims{}
