@@ -1,4 +1,4 @@
-package handlers
+package shorten_url_handlers
 
 import (
 	"context"
@@ -45,7 +45,7 @@ func (m *mockService) DeleteURLs(ctx context.Context, shortURLs []string, userID
 	return nil
 }
 
-func newTestHandler() *ShortenHandler {
+func newTestHandlerShorten() *ShortenHandler {
 	cfg := &config.ConfigType{BaseAddress: "http://localhost:8080"}
 
 	logger, _ := zap.NewDevelopment()
@@ -54,8 +54,17 @@ func newTestHandler() *ShortenHandler {
 	return NewShortenHandler(cfg, &mockService{}, sugar)
 }
 
+func newTestHandlerGetter() *GetURLHandler {
+	cfg := &config.ConfigType{BaseAddress: "http://localhost:8080"}
+
+	logger, _ := zap.NewDevelopment()
+	sugar := logger.Sugar()
+
+	return NewGetURLHandler(cfg, &mockService{}, sugar)
+}
+
 func TestURLCreator(t *testing.T) {
-	handler := newTestHandler()
+	handler := newTestHandlerShorten()
 
 	router := gin.New()
 	router.POST("/", handler.URLCreator)
@@ -74,7 +83,7 @@ func TestURLCreator(t *testing.T) {
 }
 
 func TestGetURL(t *testing.T) {
-	handler := newTestHandler()
+	handler := newTestHandlerGetter()
 
 	router := gin.New()
 	router.GET("/:url", handler.GetURL)
@@ -93,7 +102,7 @@ func TestGetURL(t *testing.T) {
 }
 
 func TestURLCreatorJSON(t *testing.T) {
-	handler := newTestHandler()
+	handler := newTestHandlerShorten()
 
 	router := gin.New()
 	router.POST("/api/shorten", handler.URLCreatorJSON)

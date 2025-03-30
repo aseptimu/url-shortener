@@ -1,10 +1,11 @@
-package handlers
+package shorten_url_handlers
 
 import (
 	"encoding/json"
 	"errors"
 	"github.com/aseptimu/url-shortener/internal/app/config"
 	"github.com/aseptimu/url-shortener/internal/app/service"
+	"github.com/aseptimu/url-shortener/internal/app/utils"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"io"
@@ -23,7 +24,7 @@ func NewShortenHandler(cfg *config.ConfigType, service service.URLShortener, log
 }
 
 func (h *ShortenHandler) URLCreator(c *gin.Context) {
-	h.logRequest(c)
+	utils.LogRequest(c, h.logger)
 
 	var userIDStr string
 	if uid, exists := c.Get("userID"); exists {
@@ -59,7 +60,7 @@ func (h *ShortenHandler) URLCreator(c *gin.Context) {
 }
 
 func (h *ShortenHandler) URLCreatorJSON(c *gin.Context) {
-	h.logRequest(c)
+	utils.LogRequest(c, h.logger)
 
 	var userIDStr string
 	if uid, exists := c.Get("userID"); exists {
@@ -112,7 +113,7 @@ type URLResponse struct {
 }
 
 func (h *ShortenHandler) URLCreatorBatch(c *gin.Context) {
-	h.logRequest(c)
+	utils.LogRequest(c, h.logger)
 
 	var userIDStr string
 	if uid, exists := c.Get("userID"); exists {
@@ -164,102 +165,4 @@ func (h *ShortenHandler) URLCreatorBatch(c *gin.Context) {
 
 	c.Header("Content-Type", "application/json")
 	c.JSON(http.StatusCreated, responseURLs)
-}
-
-func (h *ShortenHandler) GetURL(c *gin.Context) {
-	h.logRequest(c)
-	key := c.Param("url")
-	originalURL, exists, deleted := h.Service.GetOriginalURL(c.Request.Context(), key)
-	if !exists {
-		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "URL not found"})
-		return
-	}
-	if deleted {
-		c.AbortWithStatusJSON(http.StatusGone, gin.H{"error": "URL is deleted"})
-		return
-	}
-
-	c.Header("Location", originalURL)
-	c.Header("Content-Type", "text/plain")
-	c.String(http.StatusTemporaryRedirect, originalURL)
-}
-
-func (h *ShortenHandler) GetUserURLs(c *gin.Context) {
-	h.logRequest(c)
-
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
-	userIDStr, ok := userID.(string)
-	if !ok || userIDStr == "" {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
-
-	records, err := h.Service.GetUserURLs(c.Request.Context(), userIDStr)
-	if err != nil {
-		h.logger.Errorw("Failed to get user URLs", "error", err)
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	if len(records) == 0 {
-		c.Status(http.StatusNoContent)
-		return
-	}
-
-	var resp []struct {
-		ShortURL    string `json:"short_url"`
-		OriginalURL string `json:"original_url"`
-	}
-	for _, rec := range records {
-		resp = append(resp, struct {
-			ShortURL    string `json:"short_url"`
-			OriginalURL string `json:"original_url"`
-		}{
-			ShortURL:    h.cfg.BaseAddress + "/" + rec.ShortURL,
-			OriginalURL: rec.OriginalURL,
-		})
-	}
-
-	c.JSON(http.StatusOK, resp)
-}
-
-func (h *ShortenHandler) DeleteUserURLs(c *gin.Context) {
-	h.logRequest(c)
-
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
-	userIDStr, ok := userID.(string)
-	if !ok || userIDStr == "" {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
-
-	var urls []string
-	if err := json.NewDecoder(c.Request.Body).Decode(&urls); err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format"})
-		return
-	}
-
-	go func(urls []string, userID string) {
-		if err := h.Service.DeleteURLs(c.Request.Context(), urls, userID); err != nil {
-			h.logger.Errorw("Failed to delete URLs", "error", err)
-		}
-	}(urls, userIDStr)
-
-	c.Status(http.StatusAccepted)
-}
-
-func (h *ShortenHandler) logRequest(c *gin.Context) {
-	h.logger.Debugw("Endpoint called",
-		"method", c.Request.Method,
-		"path", c.FullPath(),
-		"remote_addr", c.ClientIP(),
-	)
 }

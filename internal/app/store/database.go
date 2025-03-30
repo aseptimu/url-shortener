@@ -150,9 +150,8 @@ func (db *Database) BatchSet(ctx context.Context, urls map[string]string, userID
 
 const BatchDeleteQuery = "UPDATE urls SET is_deleted = TRUE WHERE short_url = ANY($1) AND user_id = $2"
 
-func (db *Database) BatchDelete(_ context.Context, shortURLs []string, userID string) error {
-
-	cmdTag, err := db.dbpool.Exec(context.Background(), BatchDeleteQuery, shortURLs, userID)
+func (db *Database) BatchDelete(ctx context.Context, shortURLs []string, userID string) error {
+	cmdTag, err := db.dbpool.Exec(ctx, BatchDeleteQuery, shortURLs, userID)
 	if err != nil {
 		db.logger.Errorw("Failed to batch delete URLs", "error", err)
 		return err

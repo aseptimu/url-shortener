@@ -17,26 +17,26 @@ type URLRecord struct {
 }
 
 type Store interface {
-	Get(ctx context.Context, shortURL string) (string, bool, bool)
-	GetUserURLs(ctx context.Context, userID string) ([]URLRecord, error)
-	Set(ctx context.Context, shortURL, originalURL string, userID string) (string, error)
+	StoreURLGetter
+	StoreURLSetter
+	StoreURLDeleter
+}
+
+type StoreURLSetter interface {
+	Set(ctx context.Context, shortURL, originalURL, userID string) (string, error)
 	BatchSet(ctx context.Context, urls map[string]string, userID string) (map[string]string, error)
-	BatchDelete(ctx context.Context, shortURLs []string, userID string) error
 }
 
 type URLShortener interface {
 	ShortenURL(ctx context.Context, input string, userID string) (string, error)
 	ShortenURLs(ctx context.Context, inputs []string, userID string) (map[string]string, error)
-	GetOriginalURL(ctx context.Context, input string) (string, bool, bool)
-	GetUserURLs(ctx context.Context, userID string) ([]URLRecord, error)
-	DeleteURLs(ctx context.Context, shortURLs []string, userID string) error
 }
 
 type URLService struct {
-	store Store
+	store StoreURLSetter
 }
 
-func NewURLService(store Store) *URLService {
+func NewURLService(store StoreURLSetter) *URLService {
 	return &URLService{store: store}
 }
 
@@ -76,16 +76,4 @@ func (s *URLService) ShortenURLs(ctx context.Context, inputs []string, userID st
 	}
 
 	return s.store.BatchSet(ctx, urls, userID)
-}
-
-func (s *URLService) GetOriginalURL(ctx context.Context, input string) (string, bool, bool) {
-	return s.store.Get(ctx, input)
-}
-
-func (s *URLService) GetUserURLs(ctx context.Context, userID string) ([]URLRecord, error) {
-	return s.store.GetUserURLs(ctx, userID)
-}
-
-func (s *URLService) DeleteURLs(ctx context.Context, shortURLs []string, userID string) error {
-	return s.store.BatchDelete(ctx, shortURLs, userID)
 }
