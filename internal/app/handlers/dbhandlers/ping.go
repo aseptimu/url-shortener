@@ -1,4 +1,4 @@
-package db_handlers
+package dbhandlers
 
 import (
 	"github.com/aseptimu/url-shortener/internal/app/store"

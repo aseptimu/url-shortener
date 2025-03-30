@@ -2,8 +2,8 @@ package server
 
 import (
 	"github.com/aseptimu/url-shortener/internal/app/config"
-	"github.com/aseptimu/url-shortener/internal/app/handlers/db_handlers"
-	"github.com/aseptimu/url-shortener/internal/app/handlers/shorten_url_handlers"
+	"github.com/aseptimu/url-shortener/internal/app/handlers/dbhandlers"
+	"github.com/aseptimu/url-shortener/internal/app/handlers/shortenurlhandlers"
 	"github.com/aseptimu/url-shortener/internal/app/middleware"
 	"github.com/aseptimu/url-shortener/internal/app/service"
 	"github.com/aseptimu/url-shortener/internal/app/store"
@@ -50,18 +50,18 @@ func Run(addr string, cfg *config.ConfigType, logger *zap.SugaredLogger) error {
 	urlGetService := service.NewGetURLService(sourceStore)
 	urlDelete := service.NewURLDeleter(sourceStore)
 
-	getUrlHandler := shorten_url_handlers.NewGetURLHandler(cfg, urlGetService, logger)
-	shortenHandler := shorten_url_handlers.NewShortenHandler(cfg, urlService, logger)
-	deleteUrlHandler := shorten_url_handlers.NewDeleteURLHandler(cfg, urlDelete, logger)
-	pingHandler := db_handlers.NewPingHandler(db, logger)
+	getURLHandler := shortenurlhandlers.NewGetURLHandler(cfg, urlGetService, logger)
+	shortenHandler := shortenurlhandlers.NewShortenHandler(cfg, urlService, logger)
+	deleteURLHandler := shortenurlhandlers.NewDeleteURLHandler(cfg, urlDelete, logger)
+	pingHandler := dbhandlers.NewPingHandler(db, logger)
 
-	router.GET("/:url", getUrlHandler.GetURL)
+	router.GET("/:url", getURLHandler.GetURL)
 	router.GET("/ping", pingHandler.Ping)
 	router.POST("/", shortenHandler.URLCreator)
 	router.POST("/api/shorten", shortenHandler.URLCreatorJSON)
 	router.POST("/api/shorten/batch", shortenHandler.URLCreatorBatch)
-	router.GET("/api/user/urls", getUrlHandler.GetUserURLs)
-	router.DELETE("/api/user/urls", deleteUrlHandler.DeleteUserURLs)
+	router.GET("/api/user/urls", getURLHandler.GetUserURLs)
+	router.DELETE("/api/user/urls", deleteURLHandler.DeleteUserURLs)
 
 	logger.Debugw("Starting server", "address", addr)
 	err := router.Run(addr)

@@ -1,4 +1,4 @@
-package shorten_url_handlers
+package shortenurlhandlers
 
 import (
 	"encoding/json"

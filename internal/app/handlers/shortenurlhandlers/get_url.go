@@ -1,4 +1,4 @@
-package shorten_url_handlers
+package shortenurlhandlers
 
 import (
 	"github.com/aseptimu/url-shortener/internal/app/config"
