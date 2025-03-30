@@ -1,6 +1,7 @@
 package shortenurlhandlers
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/aseptimu/url-shortener/internal/app/config"
 	"github.com/aseptimu/url-shortener/internal/app/service"
@@ -41,7 +42,7 @@ func (h *DeleteURLHandler) DeleteUserURLs(c *gin.Context) {
 	}
 
 	go func(urls []string, userID string) {
-		if err := h.Service.DeleteURLs(c.Request.Context(), urls, userID); err != nil {
+		if err := h.Service.DeleteURLs(context.Background(), urls, userID); err != nil {
 			h.logger.Errorw("Failed to delete URLs", "error", err)
 		}
 	}(urls, userIDStr)
