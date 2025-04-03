@@ -1,15 +1,22 @@
 package shortenurlhandlers
 
 import (
-	"context"
 	"encoding/json"
+	"net/http"
+
 	"github.com/aseptimu/url-shortener/internal/app/config"
 	"github.com/aseptimu/url-shortener/internal/app/service"
 	"github.com/aseptimu/url-shortener/internal/app/utils"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
-	"net/http"
 )
+
+type DeleteTask struct {
+	URLs   []string
+	UserID string
+}
+
+var DeleteTaskCh = make(chan DeleteTask, 100)
 
 type DeleteURLHandler struct {
 	cfg     *config.ConfigType
@@ -41,11 +48,12 @@ func (h *DeleteURLHandler) DeleteUserURLs(c *gin.Context) {
 		return
 	}
 
-	go func(urls []string, userID string) {
-		if err := h.Service.DeleteURLs(context.Background(), urls, userID); err != nil {
-			h.logger.Errorw("Failed to delete URLs", "error", err)
-		}
-	}(urls, userIDStr)
+	task := DeleteTask{
+		URLs:   urls,
+		UserID: userIDStr,
+	}
+
+	DeleteTaskCh <- task
 
 	c.Status(http.StatusAccepted)
 }

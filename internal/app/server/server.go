@@ -1,6 +1,8 @@
 package server
 
 import (
+	"context"
+
 	"github.com/aseptimu/url-shortener/internal/app/config"
 	"github.com/aseptimu/url-shortener/internal/app/handlers/dbhandlers"
 	"github.com/aseptimu/url-shortener/internal/app/handlers/shortenurlhandlers"
@@ -8,6 +10,7 @@ import (
 	"github.com/aseptimu/url-shortener/internal/app/service"
 	"github.com/aseptimu/url-shortener/internal/app/store"
 	"github.com/aseptimu/url-shortener/internal/app/utils"
+	"github.com/aseptimu/url-shortener/internal/app/workers"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -62,6 +65,10 @@ func Run(addr string, cfg *config.ConfigType, logger *zap.SugaredLogger) error {
 	router.POST("/api/shorten/batch", shortenHandler.URLCreatorBatch)
 	router.GET("/api/user/urls", getURLHandler.GetUserURLs)
 	router.DELETE("/api/user/urls", deleteURLHandler.DeleteUserURLs)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	workers.StartDeleteWorkerPool(ctx, 5, urlDelete, logger)
 
 	logger.Debugw("Starting server", "address", addr)
 	err := router.Run(addr)
