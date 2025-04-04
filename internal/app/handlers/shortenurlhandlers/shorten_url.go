@@ -1,10 +1,11 @@
-package handlers
+package shortenurlhandlers
 
 import (
 	"encoding/json"
 	"errors"
 	"github.com/aseptimu/url-shortener/internal/app/config"
 	"github.com/aseptimu/url-shortener/internal/app/service"
+	"github.com/aseptimu/url-shortener/internal/app/utils"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"io"
@@ -23,7 +24,14 @@ func NewShortenHandler(cfg *config.ConfigType, service service.URLShortener, log
 }
 
 func (h *ShortenHandler) URLCreator(c *gin.Context) {
-	h.logRequest(c)
+	utils.LogRequest(c, h.logger)
+
+	var userIDStr string
+	if uid, exists := c.Get("userID"); exists {
+		if str, ok := uid.(string); ok {
+			userIDStr = str
+		}
+	}
 
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
@@ -37,7 +45,7 @@ func (h *ShortenHandler) URLCreator(c *gin.Context) {
 		return
 	}
 
-	shortURL, err := h.Service.ShortenURL(c.Request.Context(), text.String())
+	shortURL, err := h.Service.ShortenURL(c.Request.Context(), text.String(), userIDStr)
 	if err != nil && !errors.Is(err, service.ErrConflict) {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -52,7 +60,14 @@ func (h *ShortenHandler) URLCreator(c *gin.Context) {
 }
 
 func (h *ShortenHandler) URLCreatorJSON(c *gin.Context) {
-	h.logRequest(c)
+	utils.LogRequest(c, h.logger)
+
+	var userIDStr string
+	if uid, exists := c.Get("userID"); exists {
+		if str, ok := uid.(string); ok {
+			userIDStr = str
+		}
+	}
 
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
@@ -68,7 +83,7 @@ func (h *ShortenHandler) URLCreatorJSON(c *gin.Context) {
 		return
 	}
 
-	shortURL, err := h.Service.ShortenURL(c.Request.Context(), req.URL)
+	shortURL, err := h.Service.ShortenURL(c.Request.Context(), req.URL, userIDStr)
 	if err != nil && !errors.Is(err, service.ErrConflict) {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -98,7 +113,14 @@ type URLResponse struct {
 }
 
 func (h *ShortenHandler) URLCreatorBatch(c *gin.Context) {
-	h.logRequest(c)
+	utils.LogRequest(c, h.logger)
+
+	var userIDStr string
+	if uid, exists := c.Get("userID"); exists {
+		if str, ok := uid.(string); ok {
+			userIDStr = str
+		}
+	}
 
 	var requestURLs []struct {
 		CorrelationID string `json:"correlation_id"`
@@ -116,7 +138,7 @@ func (h *ShortenHandler) URLCreatorBatch(c *gin.Context) {
 	}
 
 	// Функция ShortenURLs возвращает map[shortURL]originalURL
-	shortenedURLs, err := h.Service.ShortenURLs(c.Request.Context(), inputURLs)
+	shortenedURLs, err := h.Service.ShortenURLs(c.Request.Context(), inputURLs, userIDStr)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to shorten URLs"})
 		return
@@ -143,26 +165,4 @@ func (h *ShortenHandler) URLCreatorBatch(c *gin.Context) {
 
 	c.Header("Content-Type", "application/json")
 	c.JSON(http.StatusCreated, responseURLs)
-}
-
-func (h *ShortenHandler) GetURL(c *gin.Context) {
-	h.logRequest(c)
-	key := c.Param("url")
-	originalURL, exists := h.Service.GetOriginalURL(c.Request.Context(), key)
-	if !exists {
-		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "URL not found"})
-		return
-	}
-
-	c.Header("Location", originalURL)
-	c.Header("Content-Type", "text/plain")
-	c.String(http.StatusTemporaryRedirect, originalURL)
-}
-
-func (h *ShortenHandler) logRequest(c *gin.Context) {
-	h.logger.Debugw("Endpoint called",
-		"method", c.Request.Method,
-		"path", c.FullPath(),
-		"remote_addr", c.ClientIP(),
-	)
 }
