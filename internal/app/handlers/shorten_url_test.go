@@ -25,10 +25,15 @@ func (m *mockService) ShortenURL(_ context.Context, url string) (string, error) 
 	return "", errors.New("invalid URL format")
 }
 func (m *mockService) ShortenURLs(_ context.Context, inputs []string) (map[string]string, error) {
-	if inputs[0] == "http://example.com" {
-		return map[string]string{"abcdef": ""}, nil
+	shortened := make(map[string]string, len(inputs))
+	for _, input := range inputs {
+		if input == "http://example.com" {
+			shortened["abcdef"] = input
+		} else {
+			return nil, errors.New("invalid URL format")
+		}
 	}
-	return map[string]string{"": ""}, errors.New("invalid URL format")
+	return shortened, nil
 }
 
 func (m *mockService) GetOriginalURL(_ context.Context, input string) (string, bool) {
@@ -108,4 +113,30 @@ func TestURLCreatorJSON(t *testing.T) {
 	bodyBytes, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
 	assert.JSONEq(t, expectedResponse, string(bodyBytes))
+}
+
+func TestURLCreatorBatch(t *testing.T) {
+	handler := newTestHandler()
+
+	router := gin.New()
+	router.POST("/batch", handler.URLCreatorBatch)
+
+	w := httptest.NewRecorder()
+	batchReq := `[{"correlation_id":"1","original_url":"http://example.com"}]`
+	r := httptest.NewRequest(http.MethodPost, "/batch", strings.NewReader(batchReq))
+	r.Header.Set("Content-Type", "application/json")
+
+	router.ServeHTTP(w, r)
+
+	res := w.Result()
+	defer res.Body.Close()
+
+	require.NotNil(t, res)
+	assert.Equal(t, http.StatusCreated, res.StatusCode)
+	assert.Equal(t, "application/json", res.Header.Get("Content-Type"))
+
+	bodyBytes, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	expected := `[{"correlation_id":"1","short_url":"http://localhost:8080/abcdef"}]`
+	assert.JSONEq(t, expected, string(bodyBytes))
 }

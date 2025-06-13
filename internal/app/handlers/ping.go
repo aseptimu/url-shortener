@@ -1,16 +1,20 @@
 package handlers
 
 import (
-	"github.com/aseptimu/url-shortener/internal/app/store"
+	"context"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
 
-type PingHandler struct {
-	db *store.Database
+type Pinger interface {
+	Ping(ctx context.Context) error
 }
 
-func NewPingHandler(db *store.Database) *PingHandler {
+type PingHandler struct {
+	db Pinger
+}
+
+func NewPingHandler(db Pinger) *PingHandler {
 	return &PingHandler{db}
 }
 
