@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"net/url"
 )
 
 type StoreURLGetter interface {
@@ -21,11 +20,6 @@ type GetURLService struct {
 
 func NewGetURLService(store StoreURLGetter) *GetURLService {
 	return &GetURLService{store: store}
-}
-
-func (s *GetURLService) isValidURL(input string) bool {
-	parsedURI, err := url.ParseRequestURI(input)
-	return err == nil && parsedURI.Scheme != "" && parsedURI.Host != ""
 }
 
 func (s *GetURLService) GetOriginalURL(ctx context.Context, input string) (string, bool, bool) {

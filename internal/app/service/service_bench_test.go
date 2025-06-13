@@ -18,7 +18,7 @@ func (m *memStore) Get(_ context.Context, shortURL string) (string, bool) {
 	return v, ok
 }
 
-func (m *memStore) Set(_ context.Context, shortURL, originalURL string) (string, error) {
+func (m *memStore) Set(_ context.Context, shortURL, originalURL string, _ string) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if existing, ok := m.data[shortURL]; ok {
@@ -28,7 +28,7 @@ func (m *memStore) Set(_ context.Context, shortURL, originalURL string) (string,
 	return originalURL, nil
 }
 
-func (m *memStore) BatchSet(_ context.Context, urls map[string]string) (map[string]string, error) {
+func (m *memStore) BatchSet(_ context.Context, urls map[string]string, _ string) (map[string]string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for short, orig := range urls {
@@ -37,6 +37,14 @@ func (m *memStore) BatchSet(_ context.Context, urls map[string]string) (map[stri
 		}
 	}
 	return urls, nil
+}
+
+func (m *memStore) GetUserURLs(ctx context.Context, userID string) ([]URLRecord, error) {
+	return nil, nil
+}
+
+func (m *memStore) BatchDelete(ctx context.Context, shortURLs []string, userID string) error {
+	return nil
 }
 
 func newMemStore() *memStore {
@@ -51,6 +59,6 @@ func BenchmarkShortenURL(b *testing.B) {
 	}
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_, _ = svc.ShortenURLs(context.Background(), inputs)
+		_, _ = svc.ShortenURLs(context.Background(), inputs, "")
 	}
 }

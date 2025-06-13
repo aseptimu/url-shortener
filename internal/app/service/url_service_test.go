@@ -8,30 +8,39 @@ import (
 )
 
 type stubStore struct {
-	setFn   func(ctx context.Context, shortURL, originalURL string) (string, error)
-	batchFn func(ctx context.Context, urls map[string]string) (map[string]string, error)
-	getFn   func(ctx context.Context, shortURL string) (string, bool)
+	setFn         func(ctx context.Context, shortURL, originalURL string) (string, error)
+	batchFn       func(ctx context.Context, urls map[string]string) (map[string]string, error)
+	getFn         func(ctx context.Context, shortURL string) (string, bool)
+	getUserURLsFn func(ctx context.Context, userID string) ([]URLRecord, error)
 }
 
-func (s *stubStore) Set(ctx context.Context, shortURL, originalURL string) (string, error) {
+func (s *stubStore) GetUserURLs(ctx context.Context, userID string) ([]URLRecord, error) {
+	if s.getUserURLsFn != nil {
+		return s.getUserURLsFn(ctx, userID)
+	}
+	return nil, nil
+}
+
+func (s *stubStore) Set(ctx context.Context, shortURL, originalURL string, _ string) (string, error) {
 	if s.setFn == nil {
 		return "", nil
 	}
 	return s.setFn(ctx, shortURL, originalURL)
 }
 
-func (s *stubStore) BatchSet(ctx context.Context, urls map[string]string) (map[string]string, error) {
+func (s *stubStore) BatchSet(ctx context.Context, urls map[string]string, _ string) (map[string]string, error) {
 	if s.batchFn == nil {
 		return nil, nil
 	}
 	return s.batchFn(ctx, urls)
 }
 
-func (s *stubStore) Get(ctx context.Context, shortURL string) (string, bool) {
+func (s *stubStore) Get(ctx context.Context, shortURL string) (originalURL string, deleted bool, exists bool) {
 	if s.getFn == nil {
-		return "", false
+		return "", false, false
 	}
-	return s.getFn(ctx, shortURL)
+	url, deleted := s.getFn(ctx, shortURL)
+	return url, deleted, false
 }
 
 func TestShortenURL_Success(t *testing.T) {
@@ -46,7 +55,7 @@ func TestShortenURL_Success(t *testing.T) {
 	}
 	svc := NewURLService(store)
 	input := "https://example.com"
-	shortURL, err := svc.ShortenURL(context.Background(), input)
+	shortURL, err := svc.ShortenURL(context.Background(), input, "")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -63,7 +72,7 @@ func TestShortenURL_Success(t *testing.T) {
 
 func TestShortenURL_InvalidURL(t *testing.T) {
 	svc := NewURLService(&stubStore{})
-	_, err := svc.ShortenURL(context.Background(), "invalid-url")
+	_, err := svc.ShortenURL(context.Background(), "invalid-url", "")
 	if err == nil || err.Error() != "invalid URL format" {
 		t.Fatalf("expected invalid URL format error, got %v", err)
 	}
@@ -78,7 +87,7 @@ func TestShortenURL_Conflict(t *testing.T) {
 	}
 	svc := NewURLService(store)
 	input := "https://example.com"
-	got, err := svc.ShortenURL(context.Background(), input)
+	got, err := svc.ShortenURL(context.Background(), input, "")
 	if !errors.Is(err, ErrConflict) {
 		t.Fatalf("expected ErrConflict, got %v", err)
 	}
@@ -96,7 +105,7 @@ func TestShortenURLs_Success(t *testing.T) {
 		},
 	}
 	svc := NewURLService(store)
-	got, err := svc.ShortenURLs(context.Background(), inputs)
+	got, err := svc.ShortenURLs(context.Background(), inputs, "")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -108,7 +117,7 @@ func TestShortenURLs_Success(t *testing.T) {
 func TestShortenURLs_InvalidURL(t *testing.T) {
 	svc := NewURLService(&stubStore{})
 	inputs := []string{"invalid", "https://example.com"}
-	_, err := svc.ShortenURLs(context.Background(), inputs)
+	_, err := svc.ShortenURLs(context.Background(), inputs, "")
 	if err == nil || err.Error() != "one or more URLs are invalid" {
 		t.Fatalf("expected invalid URL error, got %v", err)
 	}
@@ -121,12 +130,54 @@ func TestGetOriginalURL(t *testing.T) {
 			return expected, true
 		},
 	}
-	svc := NewURLService(store)
-	got, ok := svc.GetOriginalURL(context.Background(), "key")
+	svc := NewGetURLService(store)
+	got, ok, _ := svc.GetOriginalURL(context.Background(), "key")
 	if !ok {
 		t.Fatal("expected ok=true")
 	}
 	if got != expected {
 		t.Errorf("expected %q, got %q", expected, got)
+	}
+}
+func TestGetUserURLs_Success(t *testing.T) {
+	dummy := []URLRecord{
+		{UUID: "1", ShortURL: "s1", OriginalURL: "o1", UserID: "u1", DeletedFlag: false},
+		{UUID: "2", ShortURL: "s2", OriginalURL: "o2", UserID: "u1", DeletedFlag: true},
+	}
+
+	store := &stubStore{
+		getUserURLsFn: func(ctx context.Context, userID string) ([]URLRecord, error) {
+			if userID != "u1" {
+				t.Errorf("expected userID u1, got %q", userID)
+			}
+			return dummy, nil
+		},
+	}
+	svc := NewGetURLService(store)
+
+	got, err := svc.GetUserURLs(context.Background(), "u1")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !reflect.DeepEqual(got, dummy) {
+		t.Errorf("expected %v, got %v", dummy, got)
+	}
+}
+
+func TestGetUserURLs_Error(t *testing.T) {
+	expectedErr := errors.New("something went wrong")
+	store := &stubStore{
+		getUserURLsFn: func(ctx context.Context, userID string) ([]URLRecord, error) {
+			return nil, expectedErr
+		},
+	}
+	svc := NewGetURLService(store)
+
+	got, err := svc.GetUserURLs(context.Background(), "any")
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf("expected error %v, got %v", expectedErr, err)
+	}
+	if got != nil {
+		t.Errorf("expected nil slice on error, got %v", got)
 	}
 }
