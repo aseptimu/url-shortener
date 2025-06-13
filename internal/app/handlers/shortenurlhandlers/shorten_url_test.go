@@ -1,8 +1,9 @@
-package handlers
+package shortenurlhandlers
 
 import (
 	"context"
 	"errors"
+	"github.com/aseptimu/url-shortener/internal/app/service"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -18,13 +19,13 @@ import (
 
 type mockService struct{}
 
-func (m *mockService) ShortenURL(_ context.Context, url string) (string, error) {
+func (m *mockService) ShortenURL(_ context.Context, url string, _ string) (string, error) {
 	if url == "http://example.com" {
 		return "abcdef", nil
 	}
 	return "", errors.New("invalid URL format")
 }
-func (m *mockService) ShortenURLs(_ context.Context, inputs []string) (map[string]string, error) {
+func (m *mockService) ShortenURLs(_ context.Context, inputs []string, _ string) (map[string]string, error) {
 	shortened := make(map[string]string, len(inputs))
 	for _, input := range inputs {
 		if input == "http://example.com" {
@@ -36,14 +37,20 @@ func (m *mockService) ShortenURLs(_ context.Context, inputs []string) (map[strin
 	return shortened, nil
 }
 
-func (m *mockService) GetOriginalURL(_ context.Context, input string) (string, bool) {
+func (m *mockService) GetOriginalURL(_ context.Context, input string) (string, bool, bool) {
 	if input == "abcdef" {
-		return "http://example.com", true
+		return "http://example.com", true, false
 	}
-	return "", false
+	return "", false, false
+}
+func (m *mockService) GetUserURLs(ctx context.Context, userID string) ([]service.URLRecord, error) {
+	return nil, nil
+}
+func (m *mockService) DeleteURLs(ctx context.Context, shortURLs []string, userID string) error {
+	return nil
 }
 
-func newTestHandler() *ShortenHandler {
+func newTestHandlerShorten() *ShortenHandler {
 	cfg := &config.ConfigType{BaseAddress: "http://localhost:8080"}
 
 	logger, _ := zap.NewDevelopment()
@@ -52,8 +59,17 @@ func newTestHandler() *ShortenHandler {
 	return NewShortenHandler(cfg, &mockService{}, sugar)
 }
 
+func newTestHandlerGetter() *GetURLHandler {
+	cfg := &config.ConfigType{BaseAddress: "http://localhost:8080"}
+
+	logger, _ := zap.NewDevelopment()
+	sugar := logger.Sugar()
+
+	return NewGetURLHandler(cfg, &mockService{}, sugar)
+}
+
 func TestURLCreator(t *testing.T) {
-	handler := newTestHandler()
+	handler := newTestHandlerShorten()
 
 	router := gin.New()
 	router.POST("/", handler.URLCreator)
@@ -72,7 +88,7 @@ func TestURLCreator(t *testing.T) {
 }
 
 func TestGetURL(t *testing.T) {
-	handler := newTestHandler()
+	handler := newTestHandlerGetter()
 
 	router := gin.New()
 	router.GET("/:url", handler.GetURL)
@@ -91,7 +107,7 @@ func TestGetURL(t *testing.T) {
 }
 
 func TestURLCreatorJSON(t *testing.T) {
-	handler := newTestHandler()
+	handler := newTestHandlerShorten()
 
 	router := gin.New()
 	router.POST("/api/shorten", handler.URLCreatorJSON)

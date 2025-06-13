@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/aseptimu/url-shortener/internal/app/config"
+	"github.com/aseptimu/url-shortener/internal/app/service"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -14,21 +15,6 @@ import (
 type Database struct {
 	dbpool *pgxpool.Pool
 	logger *zap.SugaredLogger
-}
-
-const CreateTableQuery = `
-	CREATE TABLE IF NOT EXISTS urls (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    short_url TEXT NOT NULL UNIQUE,
-    original_url TEXT NOT NULL UNIQUE
-)`
-
-func (db *Database) CreateTables(logger *zap.SugaredLogger) {
-	ctx, cancel := context.WithTimeout(context.Background(), config.DBTimeout)
-	defer cancel()
-	if _, err := db.dbpool.Exec(ctx, CreateTableQuery); err != nil {
-		logger.Fatalf("Failed to create tables: %v Query:\n%s\n", err, CreateTableQuery)
-	}
 }
 
 func NewDB(ps string, logger *zap.SugaredLogger) *Database {
@@ -50,36 +36,57 @@ func (db *Database) Ping(ctx context.Context) error {
 	return nil
 }
 
-const GetURLQuery = "SELECT original_url FROM urls WHERE short_url = $1"
+const GetURLQuery = "SELECT original_url, is_deleted FROM urls WHERE short_url = $1"
 
-func (db *Database) Get(ctx context.Context, shortURL string) (originalURL string, ok bool) {
+func (db *Database) Get(ctx context.Context, shortURL string) (originalURL string, ok bool, isDeleted bool) {
 	ctx, cancel := context.WithTimeout(ctx, config.DBTimeout)
 	defer cancel()
 
 	row := db.dbpool.QueryRow(ctx, GetURLQuery, shortURL)
-	err := row.Scan(&originalURL)
+	var deleted bool
+	err := row.Scan(&originalURL, &deleted)
 	if err != nil {
 		db.logger.Errorw("failed to query url", "shortURL", shortURL, "err", err)
-		return "", false
+		return "", false, false
 	}
 
-	return originalURL, row != nil
+	return originalURL, row != nil, deleted
 }
 
-const SetURLQuery = `INSERT INTO urls (short_url, original_url) 
-         VALUES ($1, $2) 
+const GetURLsByUserID = "SELECT short_url, original_url FROM urls WHERE user_id = $1"
+
+func (db *Database) GetUserURLs(ctx context.Context, userID string) ([]service.URLRecord, error) {
+	rows, err := db.dbpool.Query(ctx, GetURLsByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []service.URLRecord
+	for rows.Next() {
+		var rec service.URLRecord
+		if err := rows.Scan(&rec.ShortURL, &rec.OriginalURL); err != nil {
+			return nil, err
+		}
+		results = append(results, rec)
+	}
+	return results, nil
+}
+
+const SetURLQuery = `INSERT INTO urls (short_url, original_url, user_id) 
+         VALUES ($1, $2, $3) 
          ON CONFLICT (original_url) DO NOTHING 
          RETURNING short_url`
 
 const GetExistingURLQuery = "SELECT short_url FROM urls WHERE original_url = $1"
 
-func (db *Database) Set(ctx context.Context, shortURL, originalURL string) (string, error) {
+func (db *Database) Set(ctx context.Context, shortURL, originalURL string, userID string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, config.DBTimeout)
 	defer cancel()
 
 	db.logger.Debugw("Attempting to insert URL", "shortURL", shortURL, "originalURL", originalURL)
 
-	err := db.dbpool.QueryRow(ctx, SetURLQuery, shortURL, originalURL).Scan(&shortURL)
+	err := db.dbpool.QueryRow(ctx, SetURLQuery, shortURL, originalURL, userID).Scan(&shortURL)
 
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		db.logger.Errorw("Failed to insert URL", "shortURL", shortURL, "originalURL", originalURL, "err", err)
@@ -101,7 +108,7 @@ func (db *Database) Set(ctx context.Context, shortURL, originalURL string) (stri
 	return shortURL, nil
 }
 
-func (db *Database) BatchSet(ctx context.Context, urls map[string]string) (map[string]string, error) {
+func (db *Database) BatchSet(ctx context.Context, urls map[string]string, userID string) (map[string]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, config.DBTimeout)
 	defer cancel()
 
@@ -115,7 +122,7 @@ func (db *Database) BatchSet(ctx context.Context, urls map[string]string) (map[s
 
 	for shortURL, originalURL := range urls {
 		var storedShortURL string
-		err = tx.QueryRow(ctx, SetURLQuery, shortURL, originalURL).Scan(&storedShortURL)
+		err = tx.QueryRow(ctx, SetURLQuery, shortURL, originalURL, userID).Scan(&storedShortURL)
 
 		if err != nil && err != pgx.ErrNoRows {
 			db.logger.Errorw("Failed to insert URL", "shortURL", shortURL, "originalURL", originalURL, "err", err)
@@ -139,4 +146,17 @@ func (db *Database) BatchSet(ctx context.Context, urls map[string]string) (map[s
 	}
 
 	return result, nil
+}
+
+const BatchDeleteQuery = "UPDATE urls SET is_deleted = TRUE WHERE short_url = ANY($1) AND user_id = $2"
+
+func (db *Database) BatchDelete(ctx context.Context, shortURLs []string, userID string) error {
+	cmdTag, err := db.dbpool.Exec(ctx, BatchDeleteQuery, shortURLs, userID)
+	if err != nil {
+		db.logger.Errorw("Failed to batch delete URLs", "error", err)
+		return err
+	}
+
+	db.logger.Debugw("Batch delete completed", "rowsAffected", cmdTag.RowsAffected())
+	return nil
 }
