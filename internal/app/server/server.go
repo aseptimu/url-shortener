@@ -56,7 +56,7 @@ func Run(addr string, cfg *config.ConfigType, logger *zap.SugaredLogger) error {
 	getURLHandler := shortenurlhandlers.NewGetURLHandler(cfg, urlGetService, logger)
 	shortenHandler := shortenurlhandlers.NewShortenHandler(cfg, urlService, logger)
 	deleteURLHandler := shortenurlhandlers.NewDeleteURLHandler(cfg, urlDelete, logger)
-	pingHandler := dbhandlers.NewPingHandler(db, logger)
+	pingHandler := dbhandlers.NewPingHandler(db)
 
 	router.GET("/:url", getURLHandler.GetURL)
 	router.GET("/ping", pingHandler.Ping)

@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"errors"
+	"github.com/aseptimu/url-shortener/internal/app/handlers/dbhandlers"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -21,7 +22,7 @@ func (f *fakeDB) Ping(_ context.Context) error {
 }
 
 func TestPing_NoDB(t *testing.T) {
-	handler := NewPingHandler(nil)
+	handler := dbhandlers.NewPingHandler(nil)
 	router := gin.New()
 	router.GET("/ping", handler.Ping)
 
@@ -38,7 +39,7 @@ func TestPing_NoDB(t *testing.T) {
 }
 
 func TestPing_DBFails(t *testing.T) {
-	handler := NewPingHandler(&fakeDB{err: errors.New("fail ping")})
+	handler := dbhandlers.NewPingHandler(&fakeDB{err: errors.New("fail ping")})
 	router := gin.New()
 	router.GET("/ping", handler.Ping)
 
@@ -55,7 +56,7 @@ func TestPing_DBFails(t *testing.T) {
 }
 
 func TestPing_OK(t *testing.T) {
-	handler := NewPingHandler(&fakeDB{err: nil})
+	handler := dbhandlers.NewPingHandler(&fakeDB{err: nil})
 	router := gin.New()
 	router.GET("/ping", handler.Ping)
 
