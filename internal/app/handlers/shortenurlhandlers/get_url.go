@@ -1,3 +1,4 @@
+// Package shortenurlhandlers содержит HTTP-хендлеры для операций с короткими URL.
 package shortenurlhandlers
 
 import (
@@ -9,16 +10,19 @@ import (
 	"net/http"
 )
 
+// GetURLHandler обрабатывает перенаправление на оригинальный URL и выдачу списка URL пользователя.
 type GetURLHandler struct {
 	cfg     *config.ConfigType
 	Service service.URLGetter
 	logger  *zap.SugaredLogger
 }
 
+// NewGetURLHandler создаёт новый экземпляр GetURLHandler.
 func NewGetURLHandler(cfg *config.ConfigType, service service.URLGetter, logger *zap.SugaredLogger) *GetURLHandler {
 	return &GetURLHandler{cfg: cfg, Service: service, logger: logger}
 }
 
+// GetURL перенаправляет клиента на оригинальный URL, если он существует и не удалён.
 func (h *GetURLHandler) GetURL(c *gin.Context) {
 	utils.LogRequest(c, h.logger)
 
@@ -38,6 +42,7 @@ func (h *GetURLHandler) GetURL(c *gin.Context) {
 	c.String(http.StatusTemporaryRedirect, originalURL)
 }
 
+// GetUserURLs возвращает все короткие URL, созданные текущим пользователем.
 func (h *GetURLHandler) GetUserURLs(c *gin.Context) {
 	utils.LogRequest(c, h.logger)
 

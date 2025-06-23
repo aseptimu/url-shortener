@@ -1,3 +1,4 @@
+// Package config Package конфигурация для приложения.
 package config
 
 import (
@@ -8,8 +9,10 @@ import (
 	"github.com/caarlos0/env/v11"
 )
 
+// DBTimeout задаёт максимальную длительность выполнения запросов к базе данных.
 const DBTimeout = 5 * time.Second
 
+// ConfigType описывает все параметры конфигурации приложения.
 type ConfigType struct {
 	ServerAddress   string `env:"SERVER_ADDRESS"`
 	BaseAddress     string `env:"BASE_URL"`
@@ -18,6 +21,7 @@ type ConfigType struct {
 	SecretKey       string `env:"SECRET_KEY"`
 }
 
+// NewConfig парсит флаги и переменные окружения и возвращает заполненную ConfigType.
 func NewConfig() *ConfigType {
 	config := ConfigType{}
 

@@ -1,3 +1,4 @@
+// Package shortenurlhandlers содержит HTTP-хендлеры для операций с короткими URL.
 package shortenurlhandlers
 
 import (

@@ -1,3 +1,4 @@
+// Package service содержит бизнес-логику работы с URL.
 package service
 
 import (

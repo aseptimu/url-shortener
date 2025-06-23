@@ -1,3 +1,4 @@
+// Package service содержит бизнес-логику работы с URL.
 package service
 
 import (
@@ -27,15 +28,18 @@ type StoreURLSetter interface {
 	BatchSet(ctx context.Context, urls map[string]string, userID string) (map[string]string, error)
 }
 
+// URLShortener предоставляет методы для сокращения одного или нескольких URL.
 type URLShortener interface {
 	ShortenURL(ctx context.Context, input string, userID string) (string, error)
 	ShortenURLs(ctx context.Context, inputs []string, userID string) (map[string]string, error)
 }
 
+// URLService реализует URLShortener через StoreURLSetter.
 type URLService struct {
 	store StoreURLSetter
 }
 
+// NewURLService создаёт новый URLService.
 func NewURLService(store StoreURLSetter) *URLService {
 	return &URLService{store: store}
 }
@@ -47,6 +51,7 @@ func (s *URLService) isValidURL(input string) bool {
 
 var ErrConflict = errors.New("URL already exists")
 
+// ShortenURL создаёт короткий URL для данного входа или возвращает ErrConflict
 func (s *URLService) ShortenURL(ctx context.Context, input string, userID string) (string, error) {
 	if !s.isValidURL(input) {
 		return "", errors.New("invalid URL format")

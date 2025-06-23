@@ -1,3 +1,4 @@
+// Package server настраивает маршруты, middleware и запускает HTTP-сервер.
 package server
 
 import (
@@ -15,6 +16,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// Run инициализирует маршруты, подключает middleware и запускает сервер на адресе addr.
 func Run(addr string, cfg *config.ConfigType, logger *zap.SugaredLogger) error {
 	gin.SetMode(gin.ReleaseMode)
 
