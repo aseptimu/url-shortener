@@ -1,3 +1,4 @@
+// Package utils содержит вспомогательные функции.
 package utils
 
 import (
@@ -8,6 +9,9 @@ import (
 
 const secretKeyLength = 32
 
+// GenerateRandomSecretKey создаёт случайный байтовый массив длины secretKeyLength,
+// заполняет его генератором rand,
+// а затем возвращает его в виде base64 строки.
 func GenerateRandomSecretKey() string {
 	b := make([]byte, secretKeyLength)
 	_, err := rand.Read(b)

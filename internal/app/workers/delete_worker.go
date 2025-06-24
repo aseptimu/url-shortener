@@ -1,3 +1,4 @@
+// Package workers содержит фоновые рабочие горутины для обработки задач удаления URL.
 package workers
 
 import (
@@ -8,6 +9,13 @@ import (
 	"go.uber.org/zap"
 )
 
+// StartDeleteWorkerPool запускает пул из numWorkers воркеров, каждый из которых:
+//  1. слушает контекст ctx на завершение работы;
+//  2. читает задачи удаления URL из канала shortenurlhandlers.DeleteTaskCh;
+//  3. при получении задачи вызывает deleter.DeleteURLs для пакетного удаления;
+//  4. логирует успешное или ошибочное выполнение.
+//
+// workerID используется в логах для идентификации конкретного воркера.
 func StartDeleteWorkerPool(ctx context.Context, numWorkers int, deleter service.URLDeleter, logger *zap.SugaredLogger) {
 	for i := 0; i < numWorkers; i++ {
 		go func(workerID int) {

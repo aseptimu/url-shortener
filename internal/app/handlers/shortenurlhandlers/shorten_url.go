@@ -14,16 +14,24 @@ import (
 	"net/url"
 )
 
+// ShortenHandler обрабатывает создание коротких ссылок
+// в текстовом и JSON-форматах, а также batch-режим.
 type ShortenHandler struct {
 	cfg     *config.ConfigType
 	Service service.URLShortener
 	logger  *zap.SugaredLogger
 }
 
+// NewShortenHandler создаёт новый ShortenHandler,
+// принимая конфиг, URLShortener и SugaredLogger.
 func NewShortenHandler(cfg *config.ConfigType, service service.URLShortener, logger *zap.SugaredLogger) *ShortenHandler {
 	return &ShortenHandler{cfg: cfg, Service: service, logger: logger}
 }
 
+// URLCreator обрабатывает POST /
+// Читает из тела запроса plain-text URL, сокращает его
+// и возвращает новый короткий URL в виде text/plain.
+// В случае конфликта возвращает 409 Conflict с уже существующим ключом.
 func (h *ShortenHandler) URLCreator(c *gin.Context) {
 	utils.LogRequest(c, h.logger)
 
@@ -60,6 +68,9 @@ func (h *ShortenHandler) URLCreator(c *gin.Context) {
 	}
 }
 
+// URLCreatorJSON обрабатывает POST /api/shorten
+// Принимает JSON {"url": "..."} и возвращает JSON {"result": "..."}.
+// В случае конфликта возвращает 409 Conflict.
 func (h *ShortenHandler) URLCreatorJSON(c *gin.Context) {
 	utils.LogRequest(c, h.logger)
 
@@ -103,16 +114,21 @@ func (h *ShortenHandler) URLCreatorJSON(c *gin.Context) {
 	}
 }
 
+// URLRequest описывает элемент входного массива для batch-сокращения.
 type URLRequest struct {
 	CorrelationID string `json:"correlation_id"`
 	OriginalURL   string `json:"original_url"`
 }
 
+// URLResponse описывает результат batch-сокращения для одного URL.
 type URLResponse struct {
 	CorrelationID string `json:"correlation_id"`
 	ShortURL      string `json:"short_url"`
 }
 
+// URLCreatorBatch обрабатывает POST /api/shorten/batch
+// Принимает JSON-массив URLRequest и возвращает JSON-массив URLResponse.
+// Генерирует короткие URL в batch-режиме, возвращая 201 Created.
 func (h *ShortenHandler) URLCreatorBatch(c *gin.Context) {
 	utils.LogRequest(c, h.logger)
 

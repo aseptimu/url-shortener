@@ -1,3 +1,4 @@
+// Package store содержит реализацию хранилища URL на основе файла.
 package store
 
 import (
@@ -10,12 +11,14 @@ import (
 	"sync"
 )
 
+// FileStore хранит кэш URLRecord в памяти и синхронизирует его с файлом.
 type FileStore struct {
 	mu       sync.RWMutex
 	filePath string
 	data     map[string]service.URLRecord
 }
 
+// NewFileStore создаёт FileStore, загружая данные из указанного файла при наличии.
 func NewFileStore(filePath string) *FileStore {
 	store := &FileStore{
 		filePath: filePath,
@@ -72,6 +75,7 @@ func (fs *FileStore) rewriteFile() error {
 	return writer.Flush()
 }
 
+// Get возвращает originalURL, признак существования и признак удаления для shortURL.
 func (fs *FileStore) Get(_ context.Context, shortURL string) (string, bool, bool) {
 	fs.mu.RLock()
 	defer fs.mu.RUnlock()
@@ -82,6 +86,7 @@ func (fs *FileStore) Get(_ context.Context, shortURL string) (string, bool, bool
 	return record.OriginalURL, true, record.DeletedFlag
 }
 
+// GetUserURLs возвращает список всех не удалённых service.URLRecord для заданного userID.
 func (fs *FileStore) GetUserURLs(_ context.Context, userID string) ([]service.URLRecord, error) {
 	fs.mu.RLock()
 	defer fs.mu.RUnlock()
@@ -95,6 +100,8 @@ func (fs *FileStore) GetUserURLs(_ context.Context, userID string) ([]service.UR
 	return results, nil
 }
 
+// Set сохраняет originalURL с ключом shortURL, если он ещё не существует,
+// и возвращает фактический shortURL (новый или уже существующий).
 func (fs *FileStore) Set(_ context.Context, shortURL, originalURL, userID string) (string, error) {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
@@ -118,6 +125,7 @@ func (fs *FileStore) Set(_ context.Context, shortURL, originalURL, userID string
 	return shortURL, nil
 }
 
+// BatchSet сохраняет несколько пар originalURL→shortURL и возвращает мапу originalURL→shortURL.
 func (fs *FileStore) BatchSet(_ context.Context, urls map[string]string, userID string) (map[string]string, error) {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
@@ -161,6 +169,7 @@ func (fs *FileStore) BatchSet(_ context.Context, urls map[string]string, userID 
 	return shortenedURLs, nil
 }
 
+// BatchDelete помечает переданные shortURLs как удалённые для userID и перезаписывает файл.
 func (fs *FileStore) BatchDelete(_ context.Context, shortURLs []string, userID string) error {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()

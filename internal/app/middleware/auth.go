@@ -1,22 +1,32 @@
+// Package middleware предоставляет Gin-middleware для аутентификации с помощью JWT.
 package middleware
 
 import (
 	"fmt"
+	"net/http"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
-	"net/http"
-	"time"
 )
 
+// Claims расширяет jwt.RegisteredClaims, добавляя UserID –
+// уникальный идентификатор пользователя.
 type Claims struct {
 	jwt.RegisteredClaims
 	UserID string
 }
 
+// cookieName — имя cookie, в котором хранится JWT.
 const cookieName = "userID"
 
+// AuthMiddleware возвращает Gin-мiddleware, который:
+//  1. проверяет наличие и валидность JWT в cookie с именем cookieName;
+//  2. при отсутствии или невалидном токене создаёт новый, устанавливает его в cookie
+//     и сохраняет userID в контексте запроса;
+//  3. при валидном токене извлекает userID из него и сохраняет в контексте.
 func AuthMiddleware(secretKey string, logger *zap.SugaredLogger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		cookie, err := c.Cookie(cookieName)
@@ -45,6 +55,8 @@ func AuthMiddleware(secretKey string, logger *zap.SugaredLogger) gin.HandlerFunc
 	}
 }
 
+// issueNewToken генерирует новый JWT для уникального userID,
+// устанавливает его в cookie и сохраняет userID в контексте.
 func issueNewToken(c *gin.Context, secretKey string, logger *zap.SugaredLogger) {
 	userID := uuid.New().String()
 
@@ -64,6 +76,7 @@ func issueNewToken(c *gin.Context, secretKey string, logger *zap.SugaredLogger) 
 	c.Set(cookieName, userID)
 }
 
+// generateJWT создаёт и подписывает JWT для заданного userID и секрета.
 func generateJWT(userID, secret string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
