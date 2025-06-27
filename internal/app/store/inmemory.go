@@ -1,13 +1,17 @@
+// Package store содержит различные реализации хранилищ для URL.
 package store
 
 import "sync"
 
+// InMemoryStore хранит URL-пары в памяти,
+// используя мапы для прямого и обратного поиска.
 type InMemoryStore struct {
 	data map[string]string
 	rev  map[string]string
 	mu   sync.RWMutex
 }
 
+// NewStore создаёт и возвращает новый InMemoryStore с инициализированными мапами.
 func NewStore() *InMemoryStore {
 	return &InMemoryStore{
 		data: make(map[string]string),
@@ -15,6 +19,8 @@ func NewStore() *InMemoryStore {
 	}
 }
 
+// Get возвращает оригинальный URL по ключу shortURL
+// и булев флаг, указывающий, существует ли такая запись.
 func (m *InMemoryStore) Get(shortURL string) (string, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -22,6 +28,8 @@ func (m *InMemoryStore) Get(shortURL string) (string, bool) {
 	return value, exists
 }
 
+// Set сохраняет пару shortURL→originalURL.
+// Если originalURL уже был сохранён, возвращает существующий короткий URL.
 func (m *InMemoryStore) Set(shortURL, originalURL string) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

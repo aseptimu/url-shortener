@@ -1,3 +1,4 @@
+// Package store содержит реализацию хранилища URL в PostgreSQL.
 package store
 
 import (
@@ -12,11 +13,14 @@ import (
 	"go.uber.org/zap"
 )
 
+// Database управляет подключением к PostgreSQL и логированием.
 type Database struct {
 	dbpool *pgxpool.Pool
 	logger *zap.SugaredLogger
 }
 
+// NewDB создаёт и возвращает новый Database,
+// устанавливая соединение по строке ps и используя logger для логирования.
 func NewDB(ps string, logger *zap.SugaredLogger) *Database {
 	dbpool, err := pgxpool.New(context.Background(), ps)
 	if err != nil {
@@ -26,6 +30,7 @@ func NewDB(ps string, logger *zap.SugaredLogger) *Database {
 	return &Database{dbpool, logger}
 }
 
+// Ping проверяет доступность базы данных в пределах таймаута config.DBTimeout.
 func (db *Database) Ping(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, config.DBTimeout)
 	defer cancel()
@@ -36,8 +41,10 @@ func (db *Database) Ping(ctx context.Context) error {
 	return nil
 }
 
+// GetURLQuery содержит SQL-запрос для получения оригинального URL и флага удаления.
 const GetURLQuery = "SELECT original_url, is_deleted FROM urls WHERE short_url = $1"
 
+// Get возвращает originalURL, признак существования и признак удаления для shortURL.
 func (db *Database) Get(ctx context.Context, shortURL string) (originalURL string, ok bool, isDeleted bool) {
 	ctx, cancel := context.WithTimeout(ctx, config.DBTimeout)
 	defer cancel()
@@ -53,8 +60,10 @@ func (db *Database) Get(ctx context.Context, shortURL string) (originalURL strin
 	return originalURL, row != nil, deleted
 }
 
+// GetURLsByUserID содержит SQL-запрос для получения всех URL пользователя.
 const GetURLsByUserID = "SELECT short_url, original_url FROM urls WHERE user_id = $1"
 
+// GetUserURLs возвращает список service.URLRecord для заданного userID.
 func (db *Database) GetUserURLs(ctx context.Context, userID string) ([]service.URLRecord, error) {
 	rows, err := db.dbpool.Query(ctx, GetURLsByUserID, userID)
 	if err != nil {
@@ -73,13 +82,17 @@ func (db *Database) GetUserURLs(ctx context.Context, userID string) ([]service.U
 	return results, nil
 }
 
+// SetURLQuery содержит SQL-запрос для вставки новой записи или пропуска при конфликте.
 const SetURLQuery = `INSERT INTO urls (short_url, original_url, user_id) 
          VALUES ($1, $2, $3) 
          ON CONFLICT (original_url) DO NOTHING 
          RETURNING short_url`
 
+// GetExistingURLQuery содержит SQL-запрос для получения существующего short_url по original_url.
 const GetExistingURLQuery = "SELECT short_url FROM urls WHERE original_url = $1"
 
+// Set сохраняет пару shortURL→originalURL и возвращает фактический ключ.
+// В случае конфликта возвращает уже существующий shortURL.
 func (db *Database) Set(ctx context.Context, shortURL, originalURL string, userID string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, config.DBTimeout)
 	defer cancel()
@@ -108,6 +121,7 @@ func (db *Database) Set(ctx context.Context, shortURL, originalURL string, userI
 	return shortURL, nil
 }
 
+// BatchSet сохраняет несколько URL в рамках одной транзакции и возвращает мапу shortURL→originalURL.
 func (db *Database) BatchSet(ctx context.Context, urls map[string]string, userID string) (map[string]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, config.DBTimeout)
 	defer cancel()
@@ -148,8 +162,10 @@ func (db *Database) BatchSet(ctx context.Context, urls map[string]string, userID
 	return result, nil
 }
 
+// BatchDeleteQuery содержит SQL-запрос для пометки URL как удалённых.
 const BatchDeleteQuery = "UPDATE urls SET is_deleted = TRUE WHERE short_url = ANY($1) AND user_id = $2"
 
+// BatchDelete помечает указанные shortURLs как удалённые для заданного userID.
 func (db *Database) BatchDelete(ctx context.Context, shortURLs []string, userID string) error {
 	cmdTag, err := db.dbpool.Exec(ctx, BatchDeleteQuery, shortURLs, userID)
 	if err != nil {

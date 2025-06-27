@@ -1,3 +1,4 @@
+// Package store содержит функции для миграции базы данных.
 package store
 
 import (
@@ -12,6 +13,10 @@ import (
 	"go.uber.org/zap"
 )
 
+// MigrateDB подключается к базе, настраивает параметры соединения,
+// а затем выполняет вложенные миграции из каталога ./migrations.
+// В случае ошибки открытия, инициализации драйвера или выполнения миграций
+// возвращает соответствующую ошибку.
 func MigrateDB(ps string, logger *zap.SugaredLogger) error {
 	db, err := sql.Open("pgx", ps)
 	if err != nil {

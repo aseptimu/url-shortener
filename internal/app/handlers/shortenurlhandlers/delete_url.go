@@ -1,3 +1,4 @@
+// Package shortenurlhandlers содержит HTTP-хендлеры для операций с короткими URL.
 package shortenurlhandlers
 
 import (
@@ -11,23 +12,36 @@ import (
 	"go.uber.org/zap"
 )
 
+// DeleteTask представляет задачу пакетного удаления списка коротких URL
+// для конкретного пользователя.
 type DeleteTask struct {
 	URLs   []string
 	UserID string
 }
 
+// DeleteTaskCh — буферизированный канал для передачи задач удаления.
+// Работает совместно с фоновым воркером.
 var DeleteTaskCh = make(chan DeleteTask, 100)
 
+// DeleteURLHandler обрабатывает HTTP-запросы на удаление
+// собственных сокращённых ссылок пользователя.
 type DeleteURLHandler struct {
 	cfg     *config.ConfigType
 	Service service.URLDeleter
 	logger  *zap.SugaredLogger
 }
 
+// NewDeleteURLHandler создаёт новый экземпляр DeleteURLHandler,
+// принимая на вход конфиг приложения, сервис удаления URL и логгер.
 func NewDeleteURLHandler(cfg *config.ConfigType, service service.URLDeleter, logger *zap.SugaredLogger) *DeleteURLHandler {
 	return &DeleteURLHandler{cfg: cfg, Service: service, logger: logger}
 }
 
+// DeleteUserURLs обрабатывает DELETE /api/user/urls.
+// Читает JSON-массив коротких ссылок из тела запроса,
+// формирует задачу DeleteTask и отправляет её в канал DeleteTaskCh.
+// Требует наличия валидного userID в контексте (JWT в куках).
+// В случае успеха возвращает HTTP 202 Accepted.
 func (h *DeleteURLHandler) DeleteUserURLs(c *gin.Context) {
 	utils.LogRequest(c, h.logger)
 

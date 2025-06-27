@@ -1,3 +1,4 @@
+// Package service содержит бизнес-логику работы с URL.
 package service
 
 import (
@@ -8,6 +9,7 @@ import (
 	"github.com/aseptimu/url-shortener/internal/app/utils"
 )
 
+// URLRecord хранит данные одной записи сокращённого URL.
 type URLRecord struct {
 	UUID        string `json:"uuid"`
 	ShortURL    string `json:"short_url"`
@@ -16,26 +18,31 @@ type URLRecord struct {
 	DeletedFlag bool   `json:"is_deleted"`
 }
 
+// Store объединяет интерфейсы для получения, создания и удаления URL.
 type Store interface {
 	StoreURLGetter
 	StoreURLSetter
 	StoreURLDeleter
 }
 
+// StoreURLSetter описывает методы сохранения одного или нескольких URL.
 type StoreURLSetter interface {
 	Set(ctx context.Context, shortURL, originalURL, userID string) (string, error)
 	BatchSet(ctx context.Context, urls map[string]string, userID string) (map[string]string, error)
 }
 
+// URLShortener предоставляет методы для сокращения одного или нескольких URL.
 type URLShortener interface {
 	ShortenURL(ctx context.Context, input string, userID string) (string, error)
 	ShortenURLs(ctx context.Context, inputs []string, userID string) (map[string]string, error)
 }
 
+// URLService реализует URLShortener через StoreURLSetter.
 type URLService struct {
 	store StoreURLSetter
 }
 
+// NewURLService создаёт новый URLService.
 func NewURLService(store StoreURLSetter) *URLService {
 	return &URLService{store: store}
 }
@@ -45,8 +52,10 @@ func (s *URLService) isValidURL(input string) bool {
 	return err == nil && parsedURI.Scheme != "" && parsedURI.Host != ""
 }
 
+// ErrConflict возвращается, если оригинальный URL уже существует.
 var ErrConflict = errors.New("URL already exists")
 
+// ShortenURL создаёт короткий URL для данного входа или возвращает ErrConflict
 func (s *URLService) ShortenURL(ctx context.Context, input string, userID string) (string, error) {
 	if !s.isValidURL(input) {
 		return "", errors.New("invalid URL format")
@@ -65,6 +74,7 @@ func (s *URLService) ShortenURL(ctx context.Context, input string, userID string
 	return shortURL, nil
 }
 
+// ShortenURLs создаёт короткие ссылки для нескольких URL, возвращая карту shortURL→originalURL.
 func (s *URLService) ShortenURLs(ctx context.Context, inputs []string, userID string) (map[string]string, error) {
 	urls := make(map[string]string)
 	for _, input := range inputs {
