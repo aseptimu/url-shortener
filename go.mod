@@ -1,6 +1,8 @@
 module github.com/aseptimu/url-shortener
 
-go 1.22
+go 1.22.1
+
+toolchain go1.23.6
 
 require (
 	github.com/caarlos0/env/v11 v11.3.1
@@ -12,7 +14,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/tools v0.30.0
-	honnef.co/go/tools v0.6.1
+	honnef.co/go/tools v0.5.1
 )
 
 require (
