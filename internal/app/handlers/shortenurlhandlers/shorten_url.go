@@ -90,7 +90,7 @@ func (h *ShortenHandler) URLCreatorJSON(c *gin.Context) {
 	var req struct {
 		URL string `json:"url"`
 	}
-	if err := json.Unmarshal(body, &req); err != nil {
+	if err = json.Unmarshal(body, &req); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format"})
 		return
 	}
