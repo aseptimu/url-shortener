@@ -11,7 +11,6 @@ import (
 
 // ExitMainAnalyzer - анализатор, который сообщает о прямых вызовах
 // os.Exit внутри функции main() пакета main.
-
 var ExitMainAnalyzer = &analysis.Analyzer{
 	Name:     "exitmain",
 	Doc:      "reports direct calls to os.Exit in main function of package main",
