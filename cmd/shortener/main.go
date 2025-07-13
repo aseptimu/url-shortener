@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/aseptimu/url-shortener/internal/app/config"
 	"go.uber.org/zap"
 	"log"
@@ -14,6 +15,22 @@ func main() {
 	go func() {
 		log.Println(http.ListenAndServe("localhost:6060", nil))
 	}()
+	version := buildVersion
+	if version == "" {
+		version = "N/A"
+	}
+	date := buildDate
+	if date == "" {
+		date = "N/A"
+	}
+	commit := buildCommit
+	if commit == "" {
+		commit = "N/A"
+	}
+
+	fmt.Printf("Build version: %s\n", version)
+	fmt.Printf("Build date: %s\n", date)
+	fmt.Printf("Build commit: %s\n", commit)
 
 	appCfg := config.NewConfig()
 
