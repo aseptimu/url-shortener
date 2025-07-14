@@ -1,6 +1,6 @@
 # go-musthave-shortener-tpl
 
-Шаблон репозитория для трека «Сервис сокращения URL».
+Сервис сокращения URL
 
 ## Начало работы
 
@@ -30,3 +30,17 @@ git fetch template && git checkout template/main .github
 При мёрже ветки с инкрементом в основную ветку `main` будут запускаться все автотесты.
 
 Подробнее про локальный и автоматический запуск читайте в [README автотестов](https://github.com/Yandex-Practicum/go-autotests).
+
+## Сборка с указанием версии, даты и коммита
+
+Для передачи информации о версии сборки, дате и коммите используйте флаги компилятора `-ldflags`:
+
+```
+go build -ldflags "-X 'main.buildVersion=1.0.0' -X 'main.buildDate=$(date +%Y-%m-%d)' -X 'main.buildCommit=$(git rev-parse --short HEAD)'" -o shortener ./cmd/shortener
+```
+
+- `buildVersion` — версия сборки.
+- `buildDate` — дата сборки.
+- `buildCommit` — хеш коммита.
+
+Если эти параметры не заданы, в приложении будет отображаться значение `N/A`.

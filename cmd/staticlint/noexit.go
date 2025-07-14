@@ -36,12 +36,14 @@ var ExitMainAnalyzer = &analysis.Analyzer{
 					return true
 				}
 				id, ok := sel.X.(*ast.Ident)
-				if !ok || id.Name != "os" || sel.Sel.Name != "Exit" {
+				if !ok || sel.Sel.Name != "Exit" {
 					return true
 				}
-				if obj, ok := pass.TypesInfo.Uses[id].(*types.PkgName); ok && obj.Imported().Path() == "os" {
-					pass.Reportf(sel.Sel.Pos(), "direct call to os.Exit is not allowed in main")
+				obj, ok := pass.TypesInfo.Uses[id].(*types.PkgName)
+				if !ok || obj.Imported().Path() != "os" {
+					return true
 				}
+				pass.Reportf(sel.Sel.Pos(), "direct call to os.Exit is not allowed in main")
 				return true
 			})
 		})

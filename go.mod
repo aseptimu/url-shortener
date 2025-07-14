@@ -1,8 +1,6 @@
 module github.com/aseptimu/url-shortener
 
-go 1.22.1
-
-toolchain go1.23.6
+go 1.24
 
 require (
 	github.com/caarlos0/env/v11 v11.3.1
