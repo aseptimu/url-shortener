@@ -3,7 +3,7 @@ package server
 
 import (
 	"context"
-
+	"crypto/tls"
 	"github.com/aseptimu/url-shortener/internal/app/config"
 	"github.com/aseptimu/url-shortener/internal/app/handlers/dbhandlers"
 	"github.com/aseptimu/url-shortener/internal/app/handlers/shortenurlhandlers"
@@ -14,6 +14,7 @@ import (
 	"github.com/aseptimu/url-shortener/internal/app/workers"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+	"net/http"
 )
 
 // Run инициализирует маршруты, подключает middleware и запускает сервер на адресе addr.
@@ -72,10 +73,26 @@ func Run(addr string, cfg *config.ConfigType, logger *zap.SugaredLogger) error {
 	defer cancel()
 	workers.StartDeleteWorkerPool(ctx, 5, urlDelete, logger)
 
-	logger.Debugw("Starting server", "address", addr)
-	err := router.Run(addr)
-	if err != nil {
-		logger.Errorw("Server failed to start", "error", err)
+	if cfg.EnableHTTPS {
+		certPEM, keyPEM, err := utils.GenerateSelfSignedCert()
+		if err != nil {
+			logger.Fatalf("Не удалось сгенерировать сертификат: %v", err)
+		}
+		tlsCert, err := tls.X509KeyPair(certPEM, keyPEM)
+		if err != nil {
+			logger.Fatalf("Ошибка создания X509KeyPair: %v", err)
+		}
+
+		srv := &http.Server{
+			Addr:      addr,
+			Handler:   router,
+			TLSConfig: &tls.Config{Certificates: []tls.Certificate{tlsCert}},
+		}
+
+		logger.Infow("Запуск HTTPS сервера", "addr", addr)
+		return srv.ListenAndServeTLS("", "")
 	}
-	return err
+
+	logger.Infow("Запуск HTTP сервера", "addr", addr)
+	return router.Run(addr)
 }

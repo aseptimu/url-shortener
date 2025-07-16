@@ -19,6 +19,7 @@ type ConfigType struct {
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
 	DSN             string `env:"DATABASE_DSN"`
 	SecretKey       string `env:"SECRET_KEY"`
+	EnableHTTPS     bool   `env:"ENABLE_HTTPS"`
 }
 
 // NewConfig парсит флаги и переменные окружения и возвращает заполненную ConfigType.
@@ -29,7 +30,8 @@ func NewConfig() *ConfigType {
 	flag.StringVar(&config.BaseAddress, "b", "http://localhost:8080", "shorten URL base address")
 	flag.StringVar(&config.FileStoragePath, "f", "storage.json", "File storage path")
 	flag.StringVar(&config.DSN, "d", "", "PostgreSQL connection DSN")
-	flag.StringVar(&config.SecretKey, "s", "", "Secret key")
+	flag.StringVar(&config.SecretKey, "k", "", "Secret key")
+	flag.BoolVar(&config.EnableHTTPS, "s", false, "Запустить с HTTPS")
 
 	flag.Parse()
 
