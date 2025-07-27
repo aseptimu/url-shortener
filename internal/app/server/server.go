@@ -4,6 +4,7 @@ package server
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"github.com/aseptimu/url-shortener/internal/app/config"
 	"github.com/aseptimu/url-shortener/internal/app/handlers/dbhandlers"
 	"github.com/aseptimu/url-shortener/internal/app/handlers/shortenurlhandlers"
@@ -114,5 +115,9 @@ func Run(addr string, cfg *config.ConfigType, logger *zap.SugaredLogger) error {
 	}
 
 	logger.Infow("Запуск HTTP сервера", "addr", addr)
-	return srv.ListenAndServe()
+	err := srv.ListenAndServe()
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	return nil
 }
