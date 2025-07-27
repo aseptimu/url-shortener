@@ -73,7 +73,7 @@ func Run(addr string, cfg *config.ConfigType, logger *zap.SugaredLogger) error {
 	defer cancel()
 	workers.StartDeleteWorkerPool(ctx, 5, urlDelete, logger)
 
-	if cfg.EnableHTTPS {
+	if *cfg.EnableHTTPS {
 		certPEM, keyPEM, err := utils.GenerateSelfSignedCert()
 		if err != nil {
 			logger.Fatalf("Не удалось сгенерировать сертификат: %v", err)
