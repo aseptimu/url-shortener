@@ -15,6 +15,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 )
 
 // Run инициализирует маршруты, подключает middleware и запускает сервер на адресе addr.
@@ -73,6 +77,26 @@ func Run(addr string, cfg *config.ConfigType, logger *zap.SugaredLogger) error {
 	defer cancel()
 	workers.StartDeleteWorkerPool(ctx, 5, urlDelete, logger)
 
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: router.Handler(),
+	}
+
+	quit := make(chan os.Signal, 1)
+
+	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+
+	go func() {
+		sig := <-quit
+		logger.Infow("Shutting down server", "signal", sig)
+		cancel()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			logger.Errorw("Error shutting down server", "error", err)
+		}
+	}()
+
 	if *cfg.EnableHTTPS {
 		certPEM, keyPEM, err := utils.GenerateSelfSignedCert()
 		if err != nil {
@@ -83,16 +107,12 @@ func Run(addr string, cfg *config.ConfigType, logger *zap.SugaredLogger) error {
 			logger.Fatalf("Ошибка создания X509KeyPair: %v", err)
 		}
 
-		srv := &http.Server{
-			Addr:      addr,
-			Handler:   router,
-			TLSConfig: &tls.Config{Certificates: []tls.Certificate{tlsCert}},
-		}
+		srv.TLSConfig = &tls.Config{Certificates: []tls.Certificate{tlsCert}}
 
 		logger.Infow("Запуск HTTPS сервера", "addr", addr)
 		return srv.ListenAndServeTLS("", "")
 	}
 
 	logger.Infow("Запуск HTTP сервера", "addr", addr)
-	return router.Run(addr)
+	return srv.ListenAndServe()
 }
