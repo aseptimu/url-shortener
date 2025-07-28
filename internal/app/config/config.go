@@ -27,7 +27,7 @@ type ConfigType struct {
 }
 
 // NewConfig парсит флаги и переменные окружения и возвращает заполненную ConfigType.
-func NewConfig() *ConfigType {
+func NewConfig() (*ConfigType, error) {
 	config := ConfigType{}
 
 	flag.StringVar(&config.ServerAddress, "a", "localhost:8080", "HTTP server address")
@@ -42,28 +42,31 @@ func NewConfig() *ConfigType {
 	flag.Parse()
 
 	if config.ConfigFilePath != "" {
-		applyJSONConfig(config.ConfigFilePath, &config)
+		if err := applyJSONConfig(config.ConfigFilePath, &config); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := env.Parse(&config); err != nil {
 		fmt.Printf("Ошибка загрузки конфигурации из env: %v\n", err)
+		return nil, err
 	}
 
-	return &config
+	return &config, nil
 }
 
-func applyJSONConfig(path string, config *ConfigType) {
+func applyJSONConfig(path string, config *ConfigType) error {
 	file, err := os.ReadFile(path)
 	if err != nil {
 		log.Printf("Failed to read config file: %v\n", err)
-		return
+		return err
 	}
 
 	var fileConf ConfigType
 
 	if err = json.Unmarshal(file, &fileConf); err != nil {
 		log.Printf("Failed to parse config file: %v\n", err)
-		return
+		return err
 	}
 
 	switch {
@@ -83,4 +86,5 @@ func applyJSONConfig(path string, config *ConfigType) {
 			config.EnableHTTPS = fileConf.EnableHTTPS
 		}
 	}
+	return nil
 }

@@ -32,7 +32,10 @@ func main() {
 	fmt.Printf("Build date: %s\n", date)
 	fmt.Printf("Build commit: %s\n", commit)
 
-	appCfg := config.NewConfig()
+	appCfg, err := config.NewConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	zapCfg := zap.NewDevelopmentConfig()
 	zapCfg.DisableCaller = true

@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -74,8 +75,9 @@ func Run(addr string, cfg *config.ConfigType, logger *zap.SugaredLogger) error {
 	router.GET("/api/user/urls", getURLHandler.GetUserURLs)
 	router.DELETE("/api/user/urls", deleteURLHandler.DeleteUserURLs)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx, stop := signal.NotifyContext(context.Background(),
+		syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+	defer stop()
 	workers.StartDeleteWorkerPool(ctx, 5, urlDelete, logger)
 
 	srv := &http.Server{
@@ -87,10 +89,14 @@ func Run(addr string, cfg *config.ConfigType, logger *zap.SugaredLogger) error {
 
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+
 	go func() {
-		sig := <-quit
-		logger.Infow("Shutting down server", "signal", sig)
-		cancel()
+		defer wg.Done()
+		<-ctx.Done()
+		logger.Infow("Shutting down server", "signal", "signal received")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if err := srv.Shutdown(shutdownCtx); err != nil {
@@ -111,11 +117,16 @@ func Run(addr string, cfg *config.ConfigType, logger *zap.SugaredLogger) error {
 		srv.TLSConfig = &tls.Config{Certificates: []tls.Certificate{tlsCert}}
 
 		logger.Infow("Запуск HTTPS сервера", "addr", addr)
-		return srv.ListenAndServeTLS("", "")
+		err = srv.ListenAndServeTLS("", "")
+		wg.Wait()
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return err
+		}
 	}
 
 	logger.Infow("Запуск HTTP сервера", "addr", addr)
 	err := srv.ListenAndServe()
+	wg.Wait()
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
