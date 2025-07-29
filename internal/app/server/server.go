@@ -16,7 +16,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"net/http"
-	"os"
 	"os/signal"
 	"sync"
 	"syscall"
@@ -84,10 +83,6 @@ func Run(addr string, cfg *config.ConfigType, logger *zap.SugaredLogger) error {
 		Addr:    addr,
 		Handler: router.Handler(),
 	}
-
-	quit := make(chan os.Signal, 1)
-
-	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 
 	var wg sync.WaitGroup
 
