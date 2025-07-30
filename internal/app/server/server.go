@@ -3,7 +3,8 @@ package server
 
 import (
 	"context"
-
+	"crypto/tls"
+	"errors"
 	"github.com/aseptimu/url-shortener/internal/app/config"
 	"github.com/aseptimu/url-shortener/internal/app/handlers/dbhandlers"
 	"github.com/aseptimu/url-shortener/internal/app/handlers/shortenurlhandlers"
@@ -14,6 +15,11 @@ import (
 	"github.com/aseptimu/url-shortener/internal/app/workers"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+	"net/http"
+	"os/signal"
+	"sync"
+	"syscall"
+	"time"
 )
 
 // Run инициализирует маршруты, подключает middleware и запускает сервер на адресе addr.
@@ -68,14 +74,56 @@ func Run(addr string, cfg *config.ConfigType, logger *zap.SugaredLogger) error {
 	router.GET("/api/user/urls", getURLHandler.GetUserURLs)
 	router.DELETE("/api/user/urls", deleteURLHandler.DeleteUserURLs)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx, stop := signal.NotifyContext(context.Background(),
+		syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+	defer stop()
 	workers.StartDeleteWorkerPool(ctx, 5, urlDelete, logger)
 
-	logger.Debugw("Starting server", "address", addr)
-	err := router.Run(addr)
-	if err != nil {
-		logger.Errorw("Server failed to start", "error", err)
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: router.Handler(),
 	}
-	return err
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		<-ctx.Done()
+		logger.Infow("Shutting down server", "signal", "signal received")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			logger.Errorw("Error shutting down server", "error", err)
+		}
+	}()
+
+	if *cfg.EnableHTTPS {
+		certPEM, keyPEM, err := utils.GenerateSelfSignedCert()
+		if err != nil {
+			logger.Fatalf("Не удалось сгенерировать сертификат: %v", err)
+		}
+		tlsCert, err := tls.X509KeyPair(certPEM, keyPEM)
+		if err != nil {
+			logger.Fatalf("Ошибка создания X509KeyPair: %v", err)
+		}
+
+		srv.TLSConfig = &tls.Config{Certificates: []tls.Certificate{tlsCert}}
+
+		logger.Infow("Запуск HTTPS сервера", "addr", addr)
+		err = srv.ListenAndServeTLS("", "")
+		wg.Wait()
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return err
+		}
+	}
+
+	logger.Infow("Запуск HTTP сервера", "addr", addr)
+	err := srv.ListenAndServe()
+	wg.Wait()
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	return nil
 }
