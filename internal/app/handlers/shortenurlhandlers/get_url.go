@@ -7,6 +7,7 @@ import (
 	"github.com/aseptimu/url-shortener/internal/app/utils"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+	"net"
 	"net/http"
 )
 
@@ -40,6 +41,36 @@ func (h *GetURLHandler) GetURL(c *gin.Context) {
 	c.Header("Location", originalURL)
 	c.Header("Content-Type", "text/plain")
 	c.String(http.StatusTemporaryRedirect, originalURL)
+}
+
+func (h *GetURLHandler) GetStats(c *gin.Context) {
+	utils.LogRequest(c, h.logger)
+
+	if h.cfg.TrustedSubnet == "" {
+		c.AbortWithStatus(http.StatusForbidden)
+		return
+	}
+
+	clientIP := net.ParseIP(c.GetHeader("X-Real-IP"))
+	_, trustedNet, err := net.ParseCIDR(h.cfg.TrustedSubnet)
+	if err != nil {
+		h.logger.Errorw("Invalid CIDR in config.TrustedSubnet", "value", h.cfg.TrustedSubnet, "error", err)
+		c.AbortWithStatus(http.StatusForbidden)
+		return
+	}
+
+	if clientIP == nil || !trustedNet.Contains(clientIP) {
+		c.AbortWithStatus(http.StatusForbidden)
+		return
+	}
+
+	stats, err := h.Service.GetStats(c.Request.Context())
+	if err != nil {
+		h.logger.Errorw("Failed to get stats", "error", err)
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, stats)
 }
 
 // GetUserURLs возвращает все короткие URL, созданные текущим пользователем.

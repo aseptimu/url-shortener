@@ -184,3 +184,16 @@ func (fs *FileStore) BatchDelete(_ context.Context, shortURLs []string, userID s
 
 	return fs.rewriteFile()
 }
+
+func (fs *FileStore) GetStats(_ context.Context) (int, int, error) {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	users := make(map[string]struct{})
+	var urls int
+	for _, record := range fs.data {
+		urls++
+		users[record.UserID] = struct{}{}
+	}
+
+	return len(users), urls, nil
+}

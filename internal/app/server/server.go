@@ -74,6 +74,8 @@ func Run(addr string, cfg *config.ConfigType, logger *zap.SugaredLogger) error {
 	router.GET("/api/user/urls", getURLHandler.GetUserURLs)
 	router.DELETE("/api/user/urls", deleteURLHandler.DeleteUserURLs)
 
+	router.GET("/api/internal/stats", getURLHandler.GetStats)
+
 	ctx, stop := signal.NotifyContext(context.Background(),
 		syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 	defer stop()

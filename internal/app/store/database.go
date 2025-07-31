@@ -34,6 +34,9 @@ func NewDB(ps string, logger *zap.SugaredLogger) *Database {
 func (db *Database) Ping(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, config.DBTimeout)
 	defer cancel()
+	if db == nil {
+		return errors.New("database is not initialized")
+	}
 	err := db.dbpool.Ping(ctx)
 	if err != nil {
 		return err
@@ -175,4 +178,20 @@ func (db *Database) BatchDelete(ctx context.Context, shortURLs []string, userID 
 
 	db.logger.Debugw("Batch delete completed", "rowsAffected", cmdTag.RowsAffected())
 	return nil
+}
+
+// GetStatQuery возвращает количество
+const GetStatQuery = "SELECT COUNT(short_url), COUNT(DISTINCT(user_id)) FROM urls;"
+
+// GetStats возвращает количество пользователей и url
+func (db *Database) GetStats(ctx context.Context) (users, urls int, err error) {
+	row := db.dbpool.QueryRow(ctx, GetStatQuery)
+
+	err = row.Scan(&users, &urls)
+	if err != nil {
+		db.logger.Errorw("Failed get stats", "error", err)
+		return 0, 0, err
+	}
+
+	return users, urls, nil
 }

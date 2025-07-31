@@ -24,6 +24,7 @@ type ConfigType struct {
 	SecretKey       string `env:"SECRET_KEY" json:"secret_key"`
 	EnableHTTPS     *bool  `env:"ENABLE_HTTPS" json:"enable_https"`
 	ConfigFilePath  string `env:"CONFIG" json:"-"`
+	TrustedSubnet   string `env:"TRUSTED_SUBNET" json:"trusted_subnet"`
 }
 
 // NewConfig парсит флаги и переменные окружения и возвращает заполненную ConfigType.
@@ -38,6 +39,7 @@ func NewConfig() (*ConfigType, error) {
 	config.EnableHTTPS = flag.Bool("s", false, "Запустить с HTTPS")
 	flag.StringVar(&config.ConfigFilePath, "c", "", "Путь к JSON файлу конфигурации")
 	flag.StringVar(&config.ConfigFilePath, "config", "", "Конфигурация с помощью JSON файла")
+	flag.StringVar(&config.TrustedSubnet, "t", "", "CIDR доверенной подсети")
 
 	flag.Parse()
 
@@ -80,6 +82,8 @@ func applyJSONConfig(path string, config *ConfigType) error {
 		config.DSN = fileConf.DSN
 	case fileConf.SecretKey != "" && config.SecretKey != "":
 		config.SecretKey = fileConf.SecretKey
+	case fileConf.TrustedSubnet != "" && config.TrustedSubnet != "":
+		config.TrustedSubnet = fileConf.TrustedSubnet
 	case fileConf.EnableHTTPS != nil && config.EnableHTTPS != nil:
 		f := flag.Lookup("s")
 		if f == nil || f.Value.String() == f.DefValue {
