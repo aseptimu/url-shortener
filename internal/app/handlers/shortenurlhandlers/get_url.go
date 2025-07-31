@@ -43,6 +43,7 @@ func (h *GetURLHandler) GetURL(c *gin.Context) {
 	c.String(http.StatusTemporaryRedirect, originalURL)
 }
 
+// GetStats возвращает кол-во url и пользователей
 func (h *GetURLHandler) GetStats(c *gin.Context) {
 	utils.LogRequest(c, h.logger)
 
