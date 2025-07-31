@@ -46,6 +46,9 @@ func (m *mockService) GetOriginalURL(_ context.Context, input string) (string, b
 func (m *mockService) GetUserURLs(ctx context.Context, userID string) ([]service.URLRecord, error) {
 	return nil, nil
 }
+func (m *mockService) GetStats(ctx context.Context) (*service.Stats, error) {
+	return nil, nil
+}
 func (m *mockService) DeleteURLs(ctx context.Context, shortURLs []string, userID string) error {
 	return nil
 }
@@ -145,6 +148,9 @@ func (s *stubGetter) GetOriginalURL(_ context.Context, _ string) (string, bool, 
 }
 func (s *stubGetter) GetUserURLs(_ context.Context, _ string) ([]service.URLRecord, error) {
 	return s.records, s.err
+}
+func (s *stubGetter) GetStats(_ context.Context) (*service.Stats, error) {
+	return nil, s.err
 }
 
 func newTestHandlerGetUserURLs(records []service.URLRecord, err error) *GetURLHandler {

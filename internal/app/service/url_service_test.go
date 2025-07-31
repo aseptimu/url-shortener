@@ -21,6 +21,10 @@ func (s *stubStore) GetUserURLs(ctx context.Context, userID string) ([]URLRecord
 	return nil, nil
 }
 
+func (s *stubStore) GetStats(ctx context.Context) (int, int, error) {
+	return 0, 0, nil
+}
+
 func (s *stubStore) Set(ctx context.Context, shortURL, originalURL string, _ string) (string, error) {
 	if s.setFn == nil {
 		return "", nil
