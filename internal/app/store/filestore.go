@@ -185,6 +185,7 @@ func (fs *FileStore) BatchDelete(_ context.Context, shortURLs []string, userID s
 	return fs.rewriteFile()
 }
 
+// GetStats возвращает количество пользователей и url
 func (fs *FileStore) GetStats(_ context.Context) (int, int, error) {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
