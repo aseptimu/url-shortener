@@ -1,9 +1,9 @@
-package handlers
+package http
 
 import (
 	"context"
 	"errors"
-	"github.com/aseptimu/url-shortener/internal/app/handlers/dbhandlers"
+	"github.com/aseptimu/url-shortener/internal/app/handlers/http/dbhandlers"
 	"io"
 	"net/http"
 	"net/http/httptest"

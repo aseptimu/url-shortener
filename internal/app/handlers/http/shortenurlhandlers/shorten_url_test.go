@@ -37,16 +37,19 @@ func (m *mockService) ShortenURLs(_ context.Context, inputs []string, _ string) 
 	}
 	return shortened, nil
 }
-func (m *mockService) GetOriginalURL(_ context.Context, input string) (string, bool, bool) {
+func (m *mockService) GetOriginalURL(_ context.Context, input string) (string, error) {
 	if input == "abcdef" {
-		return "http://example.com", true, false
+		return "http://example.com", nil
 	}
-	return "", false, false
+	return "", nil
 }
-func (m *mockService) GetUserURLs(ctx context.Context, userID string) ([]service.URLRecord, error) {
+func (m *mockService) GetUserURLs(_ context.Context, _ string) ([]service.URLDTO, error) {
 	return nil, nil
 }
-func (m *mockService) DeleteURLs(ctx context.Context, shortURLs []string, userID string) error {
+func (m *mockService) GetStats(_ context.Context) (service.StatsDTO, error) {
+	return service.StatsDTO{}, nil
+}
+func (m *mockService) DeleteURLs(_ context.Context, _ []string, _ string) error {
 	return nil
 }
 
@@ -136,18 +139,21 @@ func TestURLCreatorBatch(t *testing.T) {
 
 // === Tests for GetUserURLs ===
 type stubGetter struct {
-	records []service.URLRecord
+	records []service.URLDTO
 	err     error
 }
 
-func (s *stubGetter) GetOriginalURL(_ context.Context, _ string) (string, bool, bool) {
-	return "", false, false
+func (s *stubGetter) GetOriginalURL(_ context.Context, _ string) (string, error) {
+	return "", nil
 }
-func (s *stubGetter) GetUserURLs(_ context.Context, _ string) ([]service.URLRecord, error) {
+func (s *stubGetter) GetUserURLs(_ context.Context, _ string) ([]service.URLDTO, error) {
 	return s.records, s.err
 }
+func (s *stubGetter) GetStats(_ context.Context) (service.StatsDTO, error) {
+	return service.StatsDTO{}, s.err
+}
 
-func newTestHandlerGetUserURLs(records []service.URLRecord, err error) *GetURLHandler {
+func newTestHandlerGetUserURLs(records []service.URLDTO, err error) *GetURLHandler {
 	cfg := &config.ConfigType{BaseAddress: "http://localhost:8080"}
 	logger := zap.NewNop().Sugar()
 	return NewGetURLHandler(cfg, &stubGetter{records: records, err: err}, logger)
@@ -201,7 +207,7 @@ func TestGetUserURLs_Success(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodGet, "/urls", nil)
 	c.Set("userID", "alice")
 
-	records := []service.URLRecord{
+	records := []service.URLDTO{
 		{ShortURL: "abc", OriginalURL: "https://go.dev"},
 		{ShortURL: "xyz", OriginalURL: "https://gin-gonic.com"},
 	}

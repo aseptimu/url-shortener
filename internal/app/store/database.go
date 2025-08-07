@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"github.com/aseptimu/url-shortener/internal/app/config"
 	"github.com/aseptimu/url-shortener/internal/app/service"
 	"github.com/jackc/pgx/v5"
@@ -34,6 +35,9 @@ func NewDB(ps string, logger *zap.SugaredLogger) *Database {
 func (db *Database) Ping(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, config.DBTimeout)
 	defer cancel()
+	if db == nil {
+		return errors.New("database is not initialized")
+	}
 	err := db.dbpool.Ping(ctx)
 	if err != nil {
 		return err
@@ -45,35 +49,44 @@ func (db *Database) Ping(ctx context.Context) error {
 const GetURLQuery = "SELECT original_url, is_deleted FROM urls WHERE short_url = $1"
 
 // Get возвращает originalURL, признак существования и признак удаления для shortURL.
-func (db *Database) Get(ctx context.Context, shortURL string) (originalURL string, ok bool, isDeleted bool) {
+func (db *Database) Get(ctx context.Context, shortURL string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, config.DBTimeout)
 	defer cancel()
 
-	row := db.dbpool.QueryRow(ctx, GetURLQuery, shortURL)
+	var originalURL string
 	var deleted bool
+
+	row := db.dbpool.QueryRow(ctx, GetURLQuery, shortURL)
 	err := row.Scan(&originalURL, &deleted)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
+			return "", service.ErrURLNotFound
+		}
 		db.logger.Errorw("failed to query url", "shortURL", shortURL, "err", err)
-		return "", false, false
+		return "", fmt.Errorf("database error: %w", err)
 	}
 
-	return originalURL, row != nil, deleted
+	if deleted {
+		return "", service.ErrURLDeleted
+	}
+
+	return originalURL, nil
 }
 
 // GetURLsByUserID содержит SQL-запрос для получения всех URL пользователя.
 const GetURLsByUserID = "SELECT short_url, original_url FROM urls WHERE user_id = $1"
 
 // GetUserURLs возвращает список service.URLRecord для заданного userID.
-func (db *Database) GetUserURLs(ctx context.Context, userID string) ([]service.URLRecord, error) {
+func (db *Database) GetUserURLs(ctx context.Context, userID string) ([]service.URLDTO, error) {
 	rows, err := db.dbpool.Query(ctx, GetURLsByUserID, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var results []service.URLRecord
+	var results []service.URLDTO
 	for rows.Next() {
-		var rec service.URLRecord
+		var rec service.URLDTO
 		if err := rows.Scan(&rec.ShortURL, &rec.OriginalURL); err != nil {
 			return nil, err
 		}
@@ -175,4 +188,20 @@ func (db *Database) BatchDelete(ctx context.Context, shortURLs []string, userID 
 
 	db.logger.Debugw("Batch delete completed", "rowsAffected", cmdTag.RowsAffected())
 	return nil
+}
+
+// GetStatQuery возвращает количество
+const GetStatQuery = "SELECT COUNT(short_url), COUNT(DISTINCT(user_id)) FROM urls;"
+
+// GetStats возвращает количество пользователей и url
+func (db *Database) GetStats(ctx context.Context) (users, urls int, err error) {
+	row := db.dbpool.QueryRow(ctx, GetStatQuery)
+
+	err = row.Scan(&users, &urls)
+	if err != nil {
+		db.logger.Errorw("Failed get stats", "error", err)
+		return 0, 0, err
+	}
+
+	return users, urls, nil
 }

@@ -9,15 +9,6 @@ import (
 	"github.com/aseptimu/url-shortener/internal/app/utils"
 )
 
-// URLRecord хранит данные одной записи сокращённого URL.
-type URLRecord struct {
-	UUID        string `json:"uuid"`
-	ShortURL    string `json:"short_url"`
-	OriginalURL string `json:"original_url"`
-	UserID      string `json:"user_id"`
-	DeletedFlag bool   `json:"is_deleted"`
-}
-
 // Store объединяет интерфейсы для получения, создания и удаления URL.
 type Store interface {
 	StoreURLGetter
