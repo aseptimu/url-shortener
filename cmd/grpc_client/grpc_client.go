@@ -18,20 +18,17 @@ import (
 )
 
 func main() {
-	// Загружаем конфиг (должен содержать ServerAddress, например "localhost:50051")
 	appConf, err := config.NewConfig()
 	if err != nil {
 		log.Fatalf("cannot load config: %v", err)
 	}
 
-	dialCtx, dialCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	_, dialCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer dialCancel()
 
-	conn, err := grpc.DialContext(
-		dialCtx,
+	conn, err := grpc.NewClient(
 		appConf.GRPCServerAddress,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
 	)
 	if err != nil {
 		log.Fatalf("failed to dial: %v", err)

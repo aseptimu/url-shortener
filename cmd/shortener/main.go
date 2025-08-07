@@ -116,6 +116,9 @@ func main() {
 
 	sugar.Infow("Starting gRPC server on", "address: ", appCfg.GRPCServerAddress)
 	lis, err := net.Listen("tcp", appCfg.GRPCServerAddress)
+	if err != nil {
+		log.Fatalf("Failed to establish gRPC connection: %v", err)
+	}
 
 	go func() {
 		if err := grpcSrv.Serve(lis); err != nil {
