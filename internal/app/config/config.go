@@ -17,14 +17,15 @@ const DBTimeout = 5 * time.Second
 
 // ConfigType описывает все параметры конфигурации приложения.
 type ConfigType struct {
-	ServerAddress   string `env:"SERVER_ADDRESS" json:"server_address"`
-	BaseAddress     string `env:"BASE_URL" json:"base_url"`
-	FileStoragePath string `env:"FILE_STORAGE_PATH" json:"file_storage_path"`
-	DSN             string `env:"DATABASE_DSN" json:"database_dsn"`
-	SecretKey       string `env:"SECRET_KEY" json:"secret_key"`
-	EnableHTTPS     *bool  `env:"ENABLE_HTTPS" json:"enable_https"`
-	ConfigFilePath  string `env:"CONFIG" json:"-"`
-	TrustedSubnet   string `env:"TRUSTED_SUBNET" json:"trusted_subnet"`
+	ServerAddress     string `env:"SERVER_ADDRESS" json:"server_address"`
+	GRPCServerAddress string `env:"GRPC_SERVER_ADDRESS" json:"grpc_server_address"`
+	BaseAddress       string `env:"BASE_URL" json:"base_url"`
+	FileStoragePath   string `env:"FILE_STORAGE_PATH" json:"file_storage_path"`
+	DSN               string `env:"DATABASE_DSN" json:"database_dsn"`
+	SecretKey         string `env:"SECRET_KEY" json:"secret_key"`
+	EnableHTTPS       *bool  `env:"ENABLE_HTTPS" json:"enable_https"`
+	ConfigFilePath    string `env:"CONFIG" json:"-"`
+	TrustedSubnet     string `env:"TRUSTED_SUBNET" json:"trusted_subnet"`
 }
 
 // NewConfig парсит флаги и переменные окружения и возвращает заполненную ConfigType.
@@ -32,6 +33,7 @@ func NewConfig() (*ConfigType, error) {
 	config := ConfigType{}
 
 	flag.StringVar(&config.ServerAddress, "a", "localhost:8080", "HTTP server address")
+	flag.StringVar(&config.GRPCServerAddress, "ag", "localhost:8081", "gRPC server address")
 	flag.StringVar(&config.BaseAddress, "b", "http://localhost:8080", "shorten URL base address")
 	flag.StringVar(&config.FileStoragePath, "f", "storage.json", "File storage path")
 	flag.StringVar(&config.DSN, "d", "", "PostgreSQL connection DSN")
@@ -72,6 +74,8 @@ func applyJSONConfig(path string, config *ConfigType) error {
 	}
 
 	switch {
+	case fileConf.GRPCServerAddress != "" && config.GRPCServerAddress != "":
+		config.GRPCServerAddress = fileConf.GRPCServerAddress
 	case fileConf.ServerAddress != "" && config.ServerAddress != "":
 		config.ServerAddress = fileConf.ServerAddress
 	case fileConf.BaseAddress != "" && config.BaseAddress != "":

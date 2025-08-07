@@ -39,11 +39,11 @@ func (m *memStore) BatchSet(_ context.Context, urls map[string]string, _ string)
 	return urls, nil
 }
 
-func (m *memStore) GetUserURLs(ctx context.Context, userID string) ([]URLRecord, error) {
+func (m *memStore) GetUserURLs(_ context.Context, _ string) ([]URLDTO, error) {
 	return nil, nil
 }
 
-func (m *memStore) BatchDelete(ctx context.Context, shortURLs []string, userID string) error {
+func (m *memStore) BatchDelete(_ context.Context, _ []string, _ string) error {
 	return nil
 }
 

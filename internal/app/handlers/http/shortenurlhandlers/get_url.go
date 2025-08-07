@@ -2,6 +2,8 @@
 package shortenurlhandlers
 
 import (
+	"context"
+	"errors"
 	"github.com/aseptimu/url-shortener/internal/app/config"
 	"github.com/aseptimu/url-shortener/internal/app/service"
 	"github.com/aseptimu/url-shortener/internal/app/utils"
@@ -11,16 +13,38 @@ import (
 	"net/http"
 )
 
+// URLGetter предоставляет методы получения URL для клиентского кода.
+type URLGetter interface {
+	GetOriginalURL(ctx context.Context, input string) (string, error)
+	GetUserURLs(ctx context.Context, userID string) ([]service.URLDTO, error)
+	GetStats(ctx context.Context) (service.StatsDTO, error)
+}
+
+// Stats хранит данные о количестве пользователей и сохраненных url
+type Stats struct {
+	Urls  int `json:"urls"`
+	Users int `json:"users"`
+}
+
+// URLRecord хранит данные одной записи сокращённого URL.
+type URLRecord struct {
+	UUID        string `json:"uuid"`
+	ShortURL    string `json:"short_url"`
+	OriginalURL string `json:"original_url"`
+	UserID      string `json:"user_id"`
+	DeletedFlag bool   `json:"is_deleted"`
+}
+
 // GetURLHandler обрабатывает перенаправление на оригинальный URL и выдачу списка URL пользователя.
 type GetURLHandler struct {
 	cfg     *config.ConfigType
-	Service service.URLGetter
+	service URLGetter
 	logger  *zap.SugaredLogger
 }
 
 // NewGetURLHandler создаёт новый экземпляр GetURLHandler.
-func NewGetURLHandler(cfg *config.ConfigType, service service.URLGetter, logger *zap.SugaredLogger) *GetURLHandler {
-	return &GetURLHandler{cfg: cfg, Service: service, logger: logger}
+func NewGetURLHandler(cfg *config.ConfigType, service URLGetter, logger *zap.SugaredLogger) *GetURLHandler {
+	return &GetURLHandler{cfg: cfg, service: service, logger: logger}
 }
 
 // GetURL перенаправляет клиента на оригинальный URL, если он существует и не удалён.
@@ -28,14 +52,12 @@ func (h *GetURLHandler) GetURL(c *gin.Context) {
 	utils.LogRequest(c, h.logger)
 
 	key := c.Param("url")
-	originalURL, exists, deleted := h.Service.GetOriginalURL(c.Request.Context(), key)
-	if !exists {
-		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "URL not found"})
-		return
-	}
-	if deleted {
-		c.AbortWithStatusJSON(http.StatusGone, gin.H{"error": "URL is deleted"})
-		return
+	originalURL, err := h.service.GetOriginalURL(c.Request.Context(), key)
+	switch {
+	case errors.Is(err, service.ErrURLNotFound):
+		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": err.Error()})
+	case errors.Is(err, service.ErrURLDeleted):
+		c.AbortWithStatusJSON(http.StatusGone, gin.H{"error": err.Error()})
 	}
 
 	c.Header("Location", originalURL)
@@ -65,7 +87,7 @@ func (h *GetURLHandler) GetStats(c *gin.Context) {
 		return
 	}
 
-	stats, err := h.Service.GetStats(c.Request.Context())
+	stats, err := h.service.GetStats(c.Request.Context())
 	if err != nil {
 		h.logger.Errorw("Failed to get stats", "error", err)
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -89,7 +111,7 @@ func (h *GetURLHandler) GetUserURLs(c *gin.Context) {
 		return
 	}
 
-	records, err := h.Service.GetUserURLs(c.Request.Context(), userIDStr)
+	records, err := h.service.GetUserURLs(c.Request.Context(), userIDStr)
 	if err != nil {
 		h.logger.Errorw("Failed to get user URLs", "error", err)
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

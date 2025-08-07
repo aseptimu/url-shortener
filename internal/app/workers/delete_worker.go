@@ -4,7 +4,7 @@ package workers
 import (
 	"context"
 
-	"github.com/aseptimu/url-shortener/internal/app/handlers/shortenurlhandlers"
+	"github.com/aseptimu/url-shortener/internal/app/handlers/http/shortenurlhandlers"
 	"github.com/aseptimu/url-shortener/internal/app/service"
 	"go.uber.org/zap"
 )

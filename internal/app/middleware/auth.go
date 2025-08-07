@@ -2,7 +2,12 @@
 package middleware
 
 import (
+	"context"
 	"fmt"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"net/http"
 	"time"
 
@@ -21,6 +26,10 @@ type Claims struct {
 
 // cookieName — имя cookie, в котором хранится JWT.
 const cookieName = "userID"
+
+type contextKey string
+
+const ctxKeyUserID = contextKey("userID")
 
 // AuthMiddleware возвращает Gin-мiddleware, который:
 //  1. проверяет наличие и валидность JWT в cookie с именем cookieName;
@@ -53,6 +62,54 @@ func AuthMiddleware(secretKey string, logger *zap.SugaredLogger) gin.HandlerFunc
 
 		c.Set(cookieName, claims.UserID)
 	}
+}
+
+func AuthInterceptor(secretKey string, logger *zap.SugaredLogger) grpc.UnaryServerInterceptor {
+	return func(
+		ctx context.Context,
+		req interface{},
+		info *grpc.UnaryServerInfo,
+		handler grpc.UnaryHandler,
+	) (interface{}, error) {
+		var userID string
+
+		if md, ok := metadata.FromIncomingContext(ctx); ok {
+			if vals := md.Get(cookieName); len(vals) > 0 {
+				rawToken := vals[0]
+				claims := &Claims{}
+				t, err := jwt.ParseWithClaims(rawToken, claims, func(token *jwt.Token) (interface{}, error) {
+					if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+						return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+					}
+					return []byte(secretKey), nil
+				})
+				if err == nil && t.Valid {
+					userID = claims.UserID
+				} else {
+					logger.Debugw("invalid JWT in metadata, will issue new", "error", err)
+				}
+
+			}
+		}
+
+		if userID == "" {
+			userID = uuid.New().String()
+			newToken, err := generateJWT(userID, secretKey)
+			if err != nil {
+				logger.Errorw("failed to generate JWT", "error", err)
+				return nil, status.Error(codes.Internal, "failed to generate JWT")
+			}
+
+			hdr := metadata.Pairs(cookieName, newToken)
+			if err := grpc.SetHeader(ctx, hdr); err != nil {
+				logger.Warnw("failed to set user header", "error", err)
+			}
+		}
+
+		newCtx := context.WithValue(ctx, ctxKeyUserID, userID)
+		return handler(newCtx, req)
+	}
+
 }
 
 // issueNewToken генерирует новый JWT для уникального userID,
