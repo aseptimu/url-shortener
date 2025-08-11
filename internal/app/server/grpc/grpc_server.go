@@ -72,10 +72,10 @@ func (s *Server) GetUserURLs(ctx context.Context, _ *proto.GetUserURLsRequest) (
 
 	var responseUrls []*proto.UserURL
 	for _, url := range urls {
-		userUrl := &proto.UserURL{}
-		userUrl.SetShortUrl(s.cfg.BaseAddress + "/" + url.ShortURL)
-		userUrl.SetOriginalUrl(url.OriginalURL)
-		responseUrls = append(responseUrls, userUrl)
+		userURL := &proto.UserURL{}
+		userURL.SetShortUrl(s.cfg.BaseAddress + "/" + url.ShortURL)
+		userURL.SetOriginalUrl(url.OriginalURL)
+		responseUrls = append(responseUrls, userURL)
 	}
 
 	response := &proto.GetUserURLsResponse{}
