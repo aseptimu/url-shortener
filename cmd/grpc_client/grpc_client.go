@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -33,16 +32,21 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to dial: %v", err)
 	}
-	fmt.Println("connection established")
+	log.Println("connection established")
 
-	defer conn.Close()
+	defer func(conn *grpc.ClientConn) {
+		err := conn.Close()
+		if err != nil {
+			log.Println("connection close failed:", err)
+		}
+	}(conn)
 
 	client := pb.NewURLShortenerClient(conn)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	pingResp, err := client.Ping(ctx, &pb.Empty{})
+	pingResp, err := client.Ping(ctx, &pb.PingRequest{})
 	if err != nil {
 		log.Printf("could not ping: %v", err)
 	} else {
@@ -51,11 +55,11 @@ func main() {
 
 	md := metadata.NewOutgoingContext(ctx, metadata.Pairs("userID", "12345"))
 
-	resp, err := client.URLCreator(md, &pb.URLCreatorRequest{
-		OriginalUrl: "http://example.com",
-	})
+	req := &pb.URLCreatorRequest{}
+	req.SetOriginalUrl("http://example.com")
+	resp, err := client.URLCreator(md, req)
 	if err == nil {
-		fmt.Println("New short URL:", resp.GetShortenUrl())
+		log.Println("New short URL:", resp.GetShortenUrl())
 		return
 	}
 
@@ -67,14 +71,14 @@ func main() {
 	if st.Code() == codes.AlreadyExists {
 		for _, d := range st.Details() {
 			if info, ok := d.(*pb.URLCreatorResponse); ok {
-				fmt.Println("Existing short URL:", info.GetShortenUrl())
+				log.Println("Existing short URL:", info.GetShortenUrl())
 				return
 			}
 		}
 		for _, anyMsg := range st.Proto().GetDetails() {
 			var info pb.URLCreatorResponse
 			if err2 := anypb.UnmarshalTo(anyMsg, &info, proto.UnmarshalOptions{}); err2 == nil {
-				fmt.Println("Existing short URL:", info.GetShortenUrl())
+				log.Println("Existing short URL:", info.GetShortenUrl())
 				return
 			}
 		}

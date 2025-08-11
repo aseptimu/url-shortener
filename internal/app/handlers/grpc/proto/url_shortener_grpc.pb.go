@@ -34,7 +34,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type URLShortenerClient interface {
 	GetURL(ctx context.Context, in *GetURLRequest, opts ...grpc.CallOption) (*GetURLResponse, error)
-	Ping(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*PingResponse, error)
+	Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error)
 	URLCreator(ctx context.Context, in *URLCreatorRequest, opts ...grpc.CallOption) (*URLCreatorResponse, error)
 	URLCreatorJSON(ctx context.Context, in *URLCreatorJSONRequest, opts ...grpc.CallOption) (*URLCreatorJSONResponse, error)
 	URLCreatorBatch(ctx context.Context, in *URLCreatorBatchRequest, opts ...grpc.CallOption) (*URLCreatorBatchResponse, error)
@@ -61,7 +61,7 @@ func (c *uRLShortenerClient) GetURL(ctx context.Context, in *GetURLRequest, opts
 	return out, nil
 }
 
-func (c *uRLShortenerClient) Ping(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*PingResponse, error) {
+func (c *uRLShortenerClient) Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(PingResponse)
 	err := c.cc.Invoke(ctx, URLShortener_Ping_FullMethodName, in, out, cOpts...)
@@ -136,7 +136,7 @@ func (c *uRLShortenerClient) GetStats(ctx context.Context, in *GetStatsRequest, 
 // for forward compatibility.
 type URLShortenerServer interface {
 	GetURL(context.Context, *GetURLRequest) (*GetURLResponse, error)
-	Ping(context.Context, *Empty) (*PingResponse, error)
+	Ping(context.Context, *PingRequest) (*PingResponse, error)
 	URLCreator(context.Context, *URLCreatorRequest) (*URLCreatorResponse, error)
 	URLCreatorJSON(context.Context, *URLCreatorJSONRequest) (*URLCreatorJSONResponse, error)
 	URLCreatorBatch(context.Context, *URLCreatorBatchRequest) (*URLCreatorBatchResponse, error)
@@ -156,7 +156,7 @@ type UnimplementedURLShortenerServer struct{}
 func (UnimplementedURLShortenerServer) GetURL(context.Context, *GetURLRequest) (*GetURLResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetURL not implemented")
 }
-func (UnimplementedURLShortenerServer) Ping(context.Context, *Empty) (*PingResponse, error) {
+func (UnimplementedURLShortenerServer) Ping(context.Context, *PingRequest) (*PingResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Ping not implemented")
 }
 func (UnimplementedURLShortenerServer) URLCreator(context.Context, *URLCreatorRequest) (*URLCreatorResponse, error) {
@@ -217,7 +217,7 @@ func _URLShortener_GetURL_Handler(srv interface{}, ctx context.Context, dec func
 }
 
 func _URLShortener_Ping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Empty)
+	in := new(PingRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -229,7 +229,7 @@ func _URLShortener_Ping_Handler(srv interface{}, ctx context.Context, dec func(i
 		FullMethod: URLShortener_Ping_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(URLShortenerServer).Ping(ctx, req.(*Empty))
+		return srv.(URLShortenerServer).Ping(ctx, req.(*PingRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }

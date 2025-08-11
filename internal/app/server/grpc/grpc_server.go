@@ -35,7 +35,7 @@ func NewServer(
 }
 
 func (s *Server) GetURL(ctx context.Context, req *proto.GetURLRequest) (*proto.GetURLResponse, error) {
-	original, err := s.getSvc.GetOriginalURL(ctx, req.Url)
+	original, err := s.getSvc.GetOriginalURL(ctx, req.GetUrl())
 	switch {
 	case errors.Is(err, service.ErrURLNotFound):
 		return nil, status.Error(codes.NotFound, err.Error())
@@ -43,7 +43,10 @@ func (s *Server) GetURL(ctx context.Context, req *proto.GetURLRequest) (*proto.G
 		return nil, status.Error(codes.NotFound, err.Error())
 	}
 
-	return &proto.GetURLResponse{OriginalUrl: original}, nil
+	resp := &proto.GetURLResponse{}
+	resp.SetOriginalUrl(original)
+
+	return resp, nil
 }
 
 func (s *Server) GetUserURLs(ctx context.Context, _ *proto.GetUserURLsRequest) (*proto.GetUserURLsResponse, error) {
@@ -69,13 +72,15 @@ func (s *Server) GetUserURLs(ctx context.Context, _ *proto.GetUserURLsRequest) (
 
 	var responseUrls []*proto.UserURL
 	for _, url := range urls {
-		responseUrls = append(responseUrls, &proto.UserURL{
-			ShortUrl:    s.cfg.BaseAddress + "/" + url.ShortURL,
-			OriginalUrl: url.OriginalURL,
-		})
+		userUrl := &proto.UserURL{}
+		userUrl.SetShortUrl(s.cfg.BaseAddress + "/" + url.ShortURL)
+		userUrl.SetOriginalUrl(url.OriginalURL)
+		responseUrls = append(responseUrls, userUrl)
 	}
 
-	return &proto.GetUserURLsResponse{Urls: responseUrls}, nil
+	response := &proto.GetUserURLsResponse{}
+	response.SetUrls(responseUrls)
+	return response, nil
 }
 
 func (s *Server) GetStats(ctx context.Context, _ *proto.GetStatsRequest) (*proto.GetStatsResponse, error) {
@@ -98,10 +103,10 @@ func (s *Server) GetStats(ctx context.Context, _ *proto.GetStatsRequest) (*proto
 			if err != nil {
 				return nil, status.Error(codes.Internal, err.Error())
 			}
-			return &proto.GetStatsResponse{
-				TotalUrls:  int32(stats.Urls),
-				TotalUsers: int32(stats.Users),
-			}, nil
+			resp := &proto.GetStatsResponse{}
+			resp.SetTotalUsers(int32(stats.Users))
+			resp.SetTotalUrls(int32(stats.Urls))
+			return resp, nil
 		}
 	}
 	return nil, status.Error(codes.FailedPrecondition, "No metadata in context")
@@ -119,29 +124,29 @@ func (s *Server) URLCreator(ctx context.Context, req *proto.URLCreatorRequest) (
 			return nil, status.Error(codes.PermissionDenied, "Unauthorized")
 		}
 
-		shortURL, err := s.svc.ShortenURL(ctx, req.OriginalUrl, userIDStr)
+		shortURL, err := s.svc.ShortenURL(ctx, req.GetOriginalUrl(), userIDStr)
 		if err != nil && !errors.Is(err, service.ErrConflict) {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
 		if errors.Is(err, service.ErrConflict) {
 			st := status.New(codes.AlreadyExists, "Conflict")
-			stWithDetails, err2 := st.WithDetails(&proto.URLCreatorResponse{
-				ShortenUrl: shortURL,
-			})
+			resp := &proto.URLCreatorResponse{}
+			resp.SetShortenUrl(shortURL)
+			stWithDetails, err2 := st.WithDetails(resp)
 			if err2 != nil {
 				return nil, status.Error(codes.Internal, "cannot attach details")
 			}
 			return nil, stWithDetails.Err()
 		} else {
-			return &proto.URLCreatorResponse{
-				ShortenUrl: shortURL,
-			}, nil
+			resp := &proto.URLCreatorResponse{}
+			resp.SetShortenUrl(shortURL)
+			return resp, nil
 		}
 	}
 
 	return nil, status.Error(codes.FailedPrecondition, "No metadata in context")
 }
-func (s *Server) Ping(ctx context.Context, _ *proto.Empty) (*proto.PingResponse, error) {
+func (s *Server) Ping(ctx context.Context, _ *proto.PingRequest) (*proto.PingResponse, error) {
 	if s.ping == nil {
 		return nil, status.Error(codes.FailedPrecondition, "Database is not initialized ")
 	}
@@ -150,9 +155,10 @@ func (s *Server) Ping(ctx context.Context, _ *proto.Empty) (*proto.PingResponse,
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	return &proto.PingResponse{
-		Status: "OK",
-	}, nil
+	resp := &proto.PingResponse{}
+	resp.SetStatus("OK")
+
+	return resp, nil
 }
 
 func (s *Server) URLCreatorJSON(ctx context.Context, req *proto.URLCreatorJSONRequest) (*proto.URLCreatorJSONResponse, error) {
@@ -164,23 +170,23 @@ func (s *Server) URLCreatorJSON(ctx context.Context, req *proto.URLCreatorJSONRe
 			return nil, status.Error(codes.PermissionDenied, "Unauthorized")
 		}
 
-		shortURL, err := s.svc.ShortenURL(ctx, req.JsonOriginalUrl, userIDStr)
+		shortURL, err := s.svc.ShortenURL(ctx, req.GetJsonOriginalUrl(), userIDStr)
 		if err != nil && !errors.Is(err, service.ErrConflict) {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
 		if errors.Is(err, service.ErrConflict) {
 			st := status.New(codes.AlreadyExists, "Conflict")
-			stWithDetails, err2 := st.WithDetails(&proto.URLCreatorResponse{
-				ShortenUrl: shortURL,
-			})
+			resp := &proto.URLCreatorJSONResponse{}
+			resp.SetJsonResult(shortURL)
+			stWithDetails, err2 := st.WithDetails(resp)
 			if err2 != nil {
 				return nil, status.Error(codes.Internal, "cannot attach details")
 			}
 			return nil, stWithDetails.Err()
 		} else {
-			return &proto.URLCreatorJSONResponse{
-				JsonResult: shortURL,
-			}, nil
+			resp := &proto.URLCreatorJSONResponse{}
+			resp.SetJsonResult(shortURL)
+			return resp, nil
 		}
 	}
 
@@ -194,13 +200,13 @@ func (s *Server) URLCreatorBatch(ctx context.Context, req *proto.URLCreatorBatch
 		} else {
 			return nil, status.Error(codes.PermissionDenied, "Unauthorized")
 		}
-		origs := make([]string, len(req.Requests))
-		for i, item := range req.Requests {
-			origs[i] = item.OriginalUrl
+		origs := make([]string, len(req.GetRequests()))
+		for i, item := range req.GetRequests() {
+			origs[i] = item.GetOriginalUrl()
 		}
-		inputURLs := make([]string, len(req.Requests))
-		for i, request := range req.Requests {
-			inputURLs[i] = request.OriginalUrl
+		inputURLs := make([]string, len(req.GetRequests()))
+		for i, request := range req.GetRequests() {
+			inputURLs[i] = request.GetOriginalUrl()
 		}
 
 		shortenedURLs, err := s.svc.ShortenURLs(ctx, inputURLs, userIDStr)
@@ -212,20 +218,20 @@ func (s *Server) URLCreatorBatch(ctx context.Context, req *proto.URLCreatorBatch
 			shortenedURLsMap[orig] = short
 		}
 
-		responseURLs := make([]*proto.URLResponse, len(req.Requests))
-		for i, request := range req.Requests {
-			shortURL, ok := shortenedURLsMap[request.OriginalUrl]
+		responseURLs := make([]*proto.URLResponse, len(req.GetRequests()))
+		for i, request := range req.GetRequests() {
+			shortURL, ok := shortenedURLsMap[request.GetOriginalUrl()]
 			if !ok {
 				return nil, status.Error(codes.Internal, "Mismatch in shortened URLs")
 			}
-			responseURLs[i] = &proto.URLResponse{
-				CorrelationId: request.CorrelationId,
-				ShortUrl:      s.cfg.BaseAddress + "/" + shortURL,
-			}
+			res := &proto.URLResponse{}
+			res.SetCorrelationId(request.GetCorrelationId())
+			res.SetShortUrl(s.cfg.BaseAddress + "/" + shortURL)
+			responseURLs[i] = res
 		}
-		return &proto.URLCreatorBatchResponse{
-			Responses: responseURLs,
-		}, nil
+		res := &proto.URLCreatorBatchResponse{}
+		res.SetResponses(responseURLs)
+		return res, nil
 	}
 
 	return nil, status.Error(codes.FailedPrecondition, "No metadata in context")
@@ -239,7 +245,7 @@ func (s *Server) DeleteUserURLs(ctx context.Context, req *proto.DeleteUserURLsRe
 			return nil, status.Error(codes.Unauthenticated, "Unauthorized")
 		}
 		task := shortenurlhandlers.DeleteTask{
-			URLs:   req.Urls,
+			URLs:   req.GetUrls(),
 			UserID: userIDStr,
 		}
 

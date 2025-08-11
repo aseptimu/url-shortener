@@ -1,10 +1,11 @@
-syntax = "proto3";
+edition = "2023";
 
 package grpc;
 
-option go_package = "./proto";
+import "google/protobuf/go_features.proto";
 
-message Empty {}
+option go_package = "./proto";
+option features.(pb.go).api_level = API_OPAQUE;
 
 message GetURLRequest {
   string url = 1;
@@ -14,6 +15,9 @@ message GetURLResponse {
 }
 message PingResponse {
   string status = 1;
+}
+
+message PingRequest {
 }
 
 message URLCreatorRequest {
@@ -74,7 +78,7 @@ message GetStatsResponse {
 
 service URLShortener {
   rpc GetURL(GetURLRequest) returns (GetURLResponse);
-  rpc Ping(Empty) returns (PingResponse);
+  rpc Ping(PingRequest) returns (PingResponse);
   rpc URLCreator(URLCreatorRequest) returns (URLCreatorResponse);
   rpc URLCreatorJSON(URLCreatorJSONRequest) returns (URLCreatorJSONResponse);
   rpc URLCreatorBatch(URLCreatorBatchRequest) returns (URLCreatorBatchResponse);
