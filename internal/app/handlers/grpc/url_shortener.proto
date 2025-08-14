@@ -1,0 +1,88 @@
+edition = "2023";
+
+package grpc;
+
+import "google/protobuf/go_features.proto";
+
+option go_package = "./proto";
+option features.(pb.go).api_level = API_OPAQUE;
+
+message GetURLRequest {
+  string url = 1;
+}
+message GetURLResponse {
+  string original_url = 1;
+}
+message PingResponse {
+  string status = 1;
+}
+
+message PingRequest {
+}
+
+message URLCreatorRequest {
+  string original_url = 2;
+}
+message URLCreatorResponse {
+  string shortenUrl = 1;
+}
+message URLCreatorJSONRequest {
+  string json_original_url = 2;
+}
+message URLCreatorJSONResponse {
+  string json_result = 1;
+}
+
+message URLRequest {
+  string correlation_id = 1;
+  string original_url = 2;
+}
+message URLResponse {
+  string correlation_id = 1;
+  string short_url = 2;
+}
+
+message URLCreatorBatchRequest {
+  repeated URLRequest requests = 1;
+}
+
+message URLCreatorBatchResponse {
+  repeated URLResponse responses = 1;
+}
+
+message GetUserURLsRequest {
+}
+
+message UserURL {
+  string short_url = 1;
+  string original_url = 2;
+}
+
+message GetUserURLsResponse {
+  repeated UserURL urls = 1;
+}
+
+message DeleteUserURLsRequest {
+  repeated string urls = 1;
+}
+
+message DeleteUserURLsResponse {
+}
+
+message GetStatsRequest {}
+
+message GetStatsResponse {
+  int32 total_urls = 1;
+  int32 total_users = 2;
+}
+
+service URLShortener {
+  rpc GetURL(GetURLRequest) returns (GetURLResponse);
+  rpc Ping(PingRequest) returns (PingResponse);
+  rpc URLCreator(URLCreatorRequest) returns (URLCreatorResponse);
+  rpc URLCreatorJSON(URLCreatorJSONRequest) returns (URLCreatorJSONResponse);
+  rpc URLCreatorBatch(URLCreatorBatchRequest) returns (URLCreatorBatchResponse);
+  rpc GetUserURLs(GetUserURLsRequest) returns (GetUserURLsResponse);
+  rpc DeleteUserURLs(DeleteUserURLsRequest) returns (DeleteUserURLsResponse);
+  rpc GetStats(GetStatsRequest) returns (GetStatsResponse);
+}

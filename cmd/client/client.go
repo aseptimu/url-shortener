@@ -2,8 +2,8 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -13,7 +13,7 @@ func main() {
 	endpoint := "http://localhost:8080/"
 	// приглашение в консоли
 	for {
-		fmt.Println("Введите длинный URL")
+		log.Println("Введите длинный URL")
 		// открываем потоковое чтение из консоли
 		reader := bufio.NewReader(os.Stdin)
 		// читаем строку из консоли
@@ -39,7 +39,7 @@ func main() {
 			panic(err)
 		}
 		// выводим код ответа
-		fmt.Println("Статус-код ", response.Status)
+		log.Println("Статус-код ", response.Status)
 		// читаем поток из тела ответа
 		body, err := io.ReadAll(response.Body)
 		if err != nil {
@@ -47,7 +47,7 @@ func main() {
 		}
 		response.Body.Close()
 		// и печатаем его
-		fmt.Println(string(body))
+		log.Println(string(body))
 	}
 
 }

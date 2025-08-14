@@ -11,18 +11,26 @@ import (
 	"sync"
 )
 
+type URLRecord struct {
+	UUID        string
+	ShortURL    string
+	OriginalURL string
+	UserID      string
+	DeletedFlag bool
+}
+
 // FileStore хранит кэш URLRecord в памяти и синхронизирует его с файлом.
 type FileStore struct {
 	mu       sync.RWMutex
 	filePath string
-	data     map[string]service.URLRecord
+	data     map[string]URLRecord
 }
 
 // NewFileStore создаёт FileStore, загружая данные из указанного файла при наличии.
 func NewFileStore(filePath string) *FileStore {
 	store := &FileStore{
 		filePath: filePath,
-		data:     make(map[string]service.URLRecord),
+		data:     make(map[string]URLRecord),
 	}
 	store.loadFromFile()
 	return store
@@ -40,14 +48,14 @@ func (fs *FileStore) loadFromFile() {
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		var record service.URLRecord
+		var record URLRecord
 		if err := json.Unmarshal(scanner.Bytes(), &record); err == nil {
 			fs.data[record.ShortURL] = record
 		}
 	}
 }
 
-func (fs *FileStore) saveToFile(record service.URLRecord) {
+func (fs *FileStore) saveToFile(record URLRecord) {
 	file, err := os.OpenFile(fs.filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Panic(err)
@@ -76,25 +84,32 @@ func (fs *FileStore) rewriteFile() error {
 }
 
 // Get возвращает originalURL, признак существования и признак удаления для shortURL.
-func (fs *FileStore) Get(_ context.Context, shortURL string) (string, bool, bool) {
+func (fs *FileStore) Get(_ context.Context, shortURL string) (string, error) {
 	fs.mu.RLock()
 	defer fs.mu.RUnlock()
+
 	record, exists := fs.data[shortURL]
-	if !exists || record.DeletedFlag {
-		return "", false, false
+	if !exists {
+		return "", service.ErrURLNotFound
 	}
-	return record.OriginalURL, true, record.DeletedFlag
+	if record.DeletedFlag {
+		return "", service.ErrURLDeleted
+	}
+	return record.OriginalURL, nil
 }
 
 // GetUserURLs возвращает список всех не удалённых service.URLRecord для заданного userID.
-func (fs *FileStore) GetUserURLs(_ context.Context, userID string) ([]service.URLRecord, error) {
+func (fs *FileStore) GetUserURLs(_ context.Context, userID string) ([]service.URLDTO, error) {
 	fs.mu.RLock()
 	defer fs.mu.RUnlock()
 
-	var results []service.URLRecord
+	var results []service.URLDTO
 	for _, record := range fs.data {
 		if record.UserID == userID && !record.DeletedFlag {
-			results = append(results, record)
+			results = append(results, service.URLDTO{
+				ShortURL:    record.ShortURL,
+				OriginalURL: record.OriginalURL,
+			})
 		}
 	}
 	return results, nil
@@ -112,7 +127,7 @@ func (fs *FileStore) Set(_ context.Context, shortURL, originalURL, userID string
 		}
 	}
 
-	newRecord := service.URLRecord{
+	newRecord := URLRecord{
 		UUID:        shortURL,
 		ShortURL:    shortURL,
 		OriginalURL: originalURL,
@@ -151,7 +166,7 @@ func (fs *FileStore) BatchSet(_ context.Context, urls map[string]string, userID 
 			continue
 		}
 
-		newRecord := service.URLRecord{
+		newRecord := URLRecord{
 			UUID:        shortURL,
 			ShortURL:    shortURL,
 			OriginalURL: originalURL,
@@ -183,4 +198,18 @@ func (fs *FileStore) BatchDelete(_ context.Context, shortURLs []string, userID s
 	}
 
 	return fs.rewriteFile()
+}
+
+// GetStats возвращает количество пользователей и url
+func (fs *FileStore) GetStats(_ context.Context) (int, int, error) {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	users := make(map[string]struct{})
+	var urls int
+	for _, record := range fs.data {
+		urls++
+		users[record.UserID] = struct{}{}
+	}
+
+	return len(users), urls, nil
 }

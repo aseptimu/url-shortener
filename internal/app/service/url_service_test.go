@@ -11,14 +11,18 @@ type stubStore struct {
 	setFn         func(ctx context.Context, shortURL, originalURL string) (string, error)
 	batchFn       func(ctx context.Context, urls map[string]string) (map[string]string, error)
 	getFn         func(ctx context.Context, shortURL string) (string, bool)
-	getUserURLsFn func(ctx context.Context, userID string) ([]URLRecord, error)
+	getUserURLsFn func(ctx context.Context, userID string) ([]URLDTO, error)
 }
 
-func (s *stubStore) GetUserURLs(ctx context.Context, userID string) ([]URLRecord, error) {
+func (s *stubStore) GetUserURLs(ctx context.Context, userID string) ([]URLDTO, error) {
 	if s.getUserURLsFn != nil {
 		return s.getUserURLsFn(ctx, userID)
 	}
 	return nil, nil
+}
+
+func (s *stubStore) GetStats(_ context.Context) (int, int, error) {
+	return 0, 0, nil
 }
 
 func (s *stubStore) Set(ctx context.Context, shortURL, originalURL string, _ string) (string, error) {
@@ -35,12 +39,12 @@ func (s *stubStore) BatchSet(ctx context.Context, urls map[string]string, _ stri
 	return s.batchFn(ctx, urls)
 }
 
-func (s *stubStore) Get(ctx context.Context, shortURL string) (originalURL string, deleted bool, exists bool) {
+func (s *stubStore) Get(ctx context.Context, shortURL string) (originalURL string, err error) {
 	if s.getFn == nil {
-		return "", false, false
+		return "", nil
 	}
-	url, deleted := s.getFn(ctx, shortURL)
-	return url, deleted, false
+	url, _ := s.getFn(ctx, shortURL)
+	return url, ErrURLDeleted
 }
 
 func TestShortenURL_Success(t *testing.T) {
@@ -131,22 +135,22 @@ func TestGetOriginalURL(t *testing.T) {
 		},
 	}
 	svc := NewGetURLService(store)
-	got, ok, _ := svc.GetOriginalURL(context.Background(), "key")
-	if !ok {
-		t.Fatal("expected ok=true")
+	got, err := svc.GetOriginalURL(context.Background(), "key")
+	if !errors.Is(err, ErrURLDeleted) {
+		t.Fatal(err)
 	}
 	if got != expected {
 		t.Errorf("expected %q, got %q", expected, got)
 	}
 }
 func TestGetUserURLs_Success(t *testing.T) {
-	dummy := []URLRecord{
-		{UUID: "1", ShortURL: "s1", OriginalURL: "o1", UserID: "u1", DeletedFlag: false},
-		{UUID: "2", ShortURL: "s2", OriginalURL: "o2", UserID: "u1", DeletedFlag: true},
+	dummy := []URLDTO{
+		{ShortURL: "s1", OriginalURL: "o1"},
+		{ShortURL: "s2", OriginalURL: "o2"},
 	}
 
 	store := &stubStore{
-		getUserURLsFn: func(ctx context.Context, userID string) ([]URLRecord, error) {
+		getUserURLsFn: func(ctx context.Context, userID string) ([]URLDTO, error) {
 			if userID != "u1" {
 				t.Errorf("expected userID u1, got %q", userID)
 			}
@@ -167,7 +171,7 @@ func TestGetUserURLs_Success(t *testing.T) {
 func TestGetUserURLs_Error(t *testing.T) {
 	expectedErr := errors.New("something went wrong")
 	store := &stubStore{
-		getUserURLsFn: func(ctx context.Context, userID string) ([]URLRecord, error) {
+		getUserURLsFn: func(ctx context.Context, userID string) ([]URLDTO, error) {
 			return nil, expectedErr
 		},
 	}
